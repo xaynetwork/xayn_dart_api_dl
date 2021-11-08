@@ -73,6 +73,17 @@
 
 include!(concat!(env!("OUT_DIR"), "/dart_api_dl_bindings.rs"));
 
+pub const ILLEGAL_PORT: Dart_Port_DL = 0;
+
+/// Port(s) send as represented in a [`Dart_CObject`].
+pub type SendPorts = _Dart_CObject__bindgen_ty_1__bindgen_ty_1;
+
+/// Capability send as represented in a [`Dart_CObject`].
+pub type Capability = i64;
+
+/// External Typed Data as represented in a [`Dart_CObject`].
+pub type ExternalTypedData = _Dart_CObject__bindgen_ty_1__bindgen_ty_5;
+
 #[cfg(test)]
 mod tests {
     #![deny(deref_nullptr)]
