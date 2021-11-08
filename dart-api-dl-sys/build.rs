@@ -1,11 +1,8 @@
-use std::{env, fs::{self, remove_dir_all}, path::{Path, PathBuf}, process::Command};
+use std::{env, path::PathBuf};
 
 use bindgen::EnumVariation;
-use semver::Version;
 
-static DL_ENABLED_FUNCTIONS: &[&str] = &[
-  "Dart_InitializeApiDL",
-];
+static DL_ENABLED_FUNCTIONS: &[&str] = &["Dart_InitializeApiDL"];
 
 static DL_ENABLED_TYPES: &[&str] = &[
     "Dart_.+_DL",
@@ -26,22 +23,11 @@ static DL_ENABLED_VARS: &[&str] = &[
 ];
 
 fn main() {
-    let dart_src_ws = PathBuf::from(env::var_os("CARGO_MANIFEST_DIR").unwrap()).join("dart-src");
-
-    if !dart_src_ws.exists() {
-        create_dir(&dart_src_ws);
-    }
-
-    if !dart_src_ws.is_dir() {
-        panic!("Expected a directory: {}", dart_src_ws.display());
-    }
-
     print!("cargo:rerun-if-env-changed=CARGO_PKG_VERSION");
-    let version: Version = env::var("CARGO_PKG_VERSION").unwrap().parse().unwrap();
-    let dart_src_dir = dart_src_ws.join(version.build.as_str());
-    if !dart_src_dir.exists() {
-        download_dart_src(version.build.as_str(), &dart_src_dir);
-    }
+    let dart_src_dir = PathBuf::from(env::var_os("CARGO_MANIFEST_DIR").unwrap())
+        .parent()
+        .unwrap()
+        .join("dart-src");
 
     let dl_header_path = dart_src_dir.join("dart_api_dl.h");
     let dl_version_header_path = dart_src_dir.join("dart_version.h");
@@ -50,7 +36,7 @@ fn main() {
         .header(dl_header_path.to_str().expect("non-utf8 path"))
         .header(dl_version_header_path.to_str().expect("non-utf8 path"))
         .parse_callbacks(Box::new(bindgen::CargoCallbacks))
-        .default_enum_style(EnumVariation::NewType { is_bitfield: false});
+        .default_enum_style(EnumVariation::NewType { is_bitfield: false });
 
     for function in DL_ENABLED_FUNCTIONS {
         builder = builder.allowlist_function(function);
@@ -64,9 +50,9 @@ fn main() {
         builder = builder.allowlist_var(var);
     }
 
-    let bindings = builder.generate()
+    let bindings = builder
+        .generate()
         .expect("Failed to generate dart_api_dl binding");
-
 
     let out_path = PathBuf::from(env::var("OUT_DIR").unwrap()).join("dart_api_dl_bindings.rs");
     bindings

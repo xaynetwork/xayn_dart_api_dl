@@ -73,7 +73,6 @@
 
 include!(concat!(env!("OUT_DIR"), "/dart_api_dl_bindings.rs"));
 
-
 #[cfg(test)]
 mod tests {
     #![deny(deref_nullptr)]
