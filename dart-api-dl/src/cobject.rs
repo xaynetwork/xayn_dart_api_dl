@@ -5,15 +5,27 @@ use std::{
 };
 
 use dart_api_dl_sys::{
-    Capability, Dart_CObject, Dart_CObject_Type, Dart_Port_DL, Dart_TypedData_Type,
-    ExternalTypedData, SendPorts, _Dart_CObject__bindgen_ty_1,
+    Dart_CObject, Dart_CObject_Type, Dart_TypedData_Type, _Dart_CObject__bindgen_ty_1,
     _Dart_CObject__bindgen_ty_1__bindgen_ty_1, _Dart_CObject__bindgen_ty_1__bindgen_ty_2,
     _Dart_CObject__bindgen_ty_1__bindgen_ty_3, _Dart_CObject__bindgen_ty_1__bindgen_ty_5,
+    ILLEGAL_PORT,
 };
+
+use crate::{
+    port::{PortCreatingFailed, SendPort},
+    DartRuntime,
+};
+
+/// Capability send as represented in a [`Dart_CObject`].
+pub type Capability = i64;
+
+/// External Typed Data as represented in a [`Dart_CObject`].
+pub type ExternalTypedData = _Dart_CObject__bindgen_ty_1__bindgen_ty_5;
 
 /// Wrapper around a `Dart_CObject` which can be read, but which we do not own.
 ///
 /// As such we can't deallocate anything in it and should in general not modify it.
+///
 #[repr(transparent)]
 pub struct ExternCObject {
     obj: Dart_CObject,
@@ -92,11 +104,21 @@ impl ExternCObject {
         )
     }
 
-    pub fn as_send_port(&self) -> Option<SendPorts> {
+    /// Try to interpret the CObject as as send port.
+    ///
+    /// Returns:
+    ///
+    /// - `None` if this object is not a send port
+    /// - `Some(Err(..))` if it's a send port but the `ILLEGAL_PORT` port.
+    /// - `Some(Ok(..))` if it's a valid send port.
+    pub fn as_send_port(&self, rt: DartRuntime) -> Option<Result<SendPort, PortCreatingFailed>> {
         (self.obj.type_ == Dart_CObject_Type::Dart_CObject_kSendPort).then(||
-                // Safe:
-                // - if CObject is sound (which is required) the type check is enough
-                unsafe { self.obj.value.as_send_port })
+            // Safe:
+            // - if CObject is sound (which is required) the type check is enough
+            unsafe {
+                let sp = &self.obj.value.as_send_port;
+                rt.send_port_from_raw(sp.id, sp.origin_id)
+            })
     }
 
     pub fn as_capability(&self) -> Option<Capability> {
@@ -106,7 +128,7 @@ impl ExternCObject {
                 unsafe { self.obj.value.as_capability.id })
     }
 
-    pub fn as_slice(&self) -> Option<&[&ExternalTypedData]> {
+    pub fn as_slice(&self) -> Option<&[&ExternCObject]> {
         (self.obj.type_ == Dart_CObject_Type::Dart_CObject_kArray).then(|| {
             // Safe:
             // 1. the unsafe contract on the constructor
@@ -115,7 +137,7 @@ impl ExternCObject {
             // 4. mut => const is a ok
             unsafe {
                 let ar = &self.obj.value.as_array;
-                let ptr = ar.values as *const &ExternalTypedData;
+                let ptr = ar.values as *const &ExternCObject;
                 slice::from_raw_parts(ptr, ar.length.try_into().unwrap())
             }
         })
@@ -215,11 +237,24 @@ impl OwnedCObject {
         })
     }
 
-    pub fn send_port(id: Dart_Port_DL, origin_id: Dart_Port_DL) -> Self {
+    /// Create a CObject representing a *single* send port.
+    ///
+    /// `origin_id` is set when creating a send port in dart to
+    /// the "default" port of the isolate the send port was created
+    /// in, but can be unset.
+    ///
+    /// Which means it's nearly always `None` for usages of this
+    /// function as it can be called outside of a dart isolate, and
+    /// because we have no way to access the port of a isolate we
+    /// might happen to be in.
+    pub fn send_port(id: SendPort, origin_id: Option<SendPort>) -> Self {
         Self::wrap_raw(Dart_CObject {
             type_: Dart_CObject_Type::Dart_CObject_kSendPort,
             value: _Dart_CObject__bindgen_ty_1 {
-                as_send_port: _Dart_CObject__bindgen_ty_1__bindgen_ty_1 { id, origin_id },
+                as_send_port: _Dart_CObject__bindgen_ty_1__bindgen_ty_1 {
+                    id: id.as_raw(),
+                    origin_id: origin_id.map(|v| v.as_raw()).unwrap_or(ILLEGAL_PORT),
+                },
             },
         })
     }

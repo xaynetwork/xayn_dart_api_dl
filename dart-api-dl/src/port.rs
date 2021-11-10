@@ -14,13 +14,52 @@ use crate::{
 };
 
 impl DartRuntime {
-    /// Create a new [`NativeSendPort`].
+    /// Wraps the port.
+    ///
+    /// Fails is `port == ILLEGAL_PORT`.
     ///
     /// # Safety
     ///
-    /// Id must be a valid send port.
-    pub unsafe fn native_send_port(&self, id: Dart_Port_DL) -> SendPort {
-        SendPort(id)
+    /// The caller must make sure `port` refers
+    /// to a valid port we are allowed to send
+    /// messages to.
+    ///
+    pub unsafe fn send_port_from_raw(
+        &self,
+        port: Dart_Port_DL,
+        origin: Dart_Port_DL,
+    ) -> Result<SendPort, PortCreatingFailed> {
+        if port == ILLEGAL_PORT {
+            Err(PortCreatingFailed)
+        } else {
+            Ok(SendPort {
+                port,
+                origin: (origin != ILLEGAL_PORT).then(|| origin),
+            })
+        }
+    }
+
+    /// Wrap a port id as `NativeRecvPort`.
+    ///
+    /// This closed the port when this wrapper is dropped.
+    ///
+    /// # Safety
+    ///
+    /// - the port must be a native port
+    /// - we must be allowed to close the native port without
+    ///   causing safety issue
+    pub unsafe fn native_recv_port_from_raw(
+        &self,
+        port: Dart_Port_DL
+    ) -> Result<NativeRecvPort, PortCreatingFailed> {
+        if port == ILLEGAL_PORT {
+            Err(PortCreatingFailed)
+        } else {
+            Ok(NativeRecvPort(SendPort {
+                port,
+                origin: None,
+            }))
+        }
     }
 
     /// Creates a new [`NativeRecvPort`].
@@ -41,11 +80,7 @@ impl DartRuntime {
         let port =
             fpslot!(@call Dart_NewNativePort_DL(c_name.as_ptr(), handler, handle_concurrently));
 
-        if port == ILLEGAL_PORT {
-            Err(PortCreatingFailed)
-        } else {
-            Ok(NativeRecvPort::from_raw(port))
-        }
+        self.native_recv_port_from_raw(port)
     }
 
     /// A rust-safe way to creates a new [`NativeRecvPort`].
@@ -62,15 +97,18 @@ impl DartRuntime {
         return if port == ILLEGAL_PORT {
             Err(PortCreatingFailed)
         } else {
-            Ok(unsafe { NativeRecvPort::from_raw(port) })
+            unsafe { self.native_recv_port_from_raw(port) }
         };
 
         unsafe extern "C" fn handle_message<N>(ourself: Dart_Port_DL, data_ref: *mut Dart_CObject)
         where
             N: NativeMessageHandler,
         {
-            let recp_port = &NativeRecvPort(SendPort(ourself));
-            ExternCObject::with_pointer(data_ref, |data| N::handle_message(recp_port, data))
+            if let Some(port) = DartRuntime::instance().ok().and_then(|rt| rt.native_recv_port_from_raw(ourself).ok()) {
+                ExternCObject::with_pointer(data_ref, |data| N::handle_message(&port, data))
+            } else {
+                // shouldn't happen but we can't panic either
+            }
         }
     }
 }
@@ -91,23 +129,16 @@ pub trait NativeMessageHandler {
 ///   safe code was used.
 ///
 ///
-#[derive(Debug, Clone)]
-pub struct SendPort(Dart_Port_DL);
+#[derive(Debug, Clone, Copy)]
+pub struct SendPort {
+    port: Dart_Port_DL,
+    origin: Option<Dart_Port_DL>,
+}
 
 impl SendPort {
-    /// Wraps the port.
-    ///
-    /// # Safety
-    ///
-    /// The caller must make sure `port` refers
-    /// to a valid port we are allowed to send
-    /// messages to.
-    pub unsafe fn from_raw(port: Dart_Port_DL) -> Self {
-        Self(port)
-    }
 
     pub fn as_raw(&self) -> Dart_Port_DL {
-        self.0
+        self.port
     }
 
     /// Sends given integer to given port.
@@ -115,7 +146,7 @@ impl SendPort {
     pub fn post_integer(&self, message: i64) -> Result<(), PortPostMessageFailed> {
         // SAFE: As long as trying to send to a closed port is safe, which should be
         //       safe for darts security model to work.
-        if unsafe { fpslot!(@call Dart_PostInteger_DL(self.0, message)) } {
+        if unsafe { fpslot!(@call Dart_PostInteger_DL(self.port, message)) } {
             Ok(())
         } else {
             Err(PortPostMessageFailed)
@@ -139,31 +170,12 @@ impl SendPort {
     pub fn post_cobject(&self, cobject: &mut OwnedCObject) -> Result<(), PortPostMessageFailed> {
         // SAFE: As long as `OwnedCObject` was properly constructed and is kept in a sound
         //       sate which is a requirements of it's unsafe interfaces.
-        if unsafe { fpslot!(@call Dart_PostCObject_DL(self.0, cobject.as_ptr_mut())) } {
+        if unsafe { fpslot!(@call Dart_PostCObject_DL(self.port, cobject.as_ptr_mut())) } {
             Ok(())
         } else {
             Err(PortPostMessageFailed)
         }
     }
-
-    // /// Posts a dart handle.
-    // ///
-    // /// There are the same restrictions for posting a dart handle as there are for
-    // /// for calling `.send(...)` on a `SendPort` in dart.
-    // pub fn post(
-    //     &self,
-    //     _ctx: &InDartIsolate,
-    //     dart_object: DartHandle,
-    // ) -> Result<(), PortManagementFailure> {
-    //     // SAFE:
-    //     // - we know we are in the dart runtime
-    //     // - the message is fully handled by dart
-    //     if unsafe { fpslot!(@call Dart_Post_DL(self.0, dart_object.raw_handle())) } {
-    //         Ok(())
-    //     } else {
-    //         Err(PortManagementFailure::PostingFailed(self.clone()))
-    //     }
-    // }
 }
 
 /// Handler for a native receiver port.
@@ -172,21 +184,6 @@ impl SendPort {
 #[derive(Debug)]
 pub struct NativeRecvPort(SendPort);
 
-impl NativeRecvPort {
-    /// Wrap a port id as `NativeRecvPort`.
-    ///
-    /// This closed the port when this wrapper is dropped.
-    ///
-    /// # Safety
-    ///
-    /// - the port must be a native port
-    /// - we must be allowed to close the native port without
-    ///   causing safety issue
-    pub unsafe fn from_raw(port: Dart_Port_DL) -> Self {
-        NativeRecvPort(SendPort(port))
-    }
-}
-
 impl Drop for NativeRecvPort {
     fn drop(&mut self) {
         // SAFE:
@@ -194,7 +191,7 @@ impl Drop for NativeRecvPort {
         // - and if calling it a bad port id is safe
         //
         // Both should be the case
-        unsafe { fpslot!(@call Dart_CloseNativePort_DL(self.0.0)) };
+        unsafe { fpslot!(@call Dart_CloseNativePort_DL(self.as_raw())) };
     }
 }
 
