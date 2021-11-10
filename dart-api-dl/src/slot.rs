@@ -1,5 +1,5 @@
 macro_rules! __fpslot {
-    (@call_slot $slot:ident ( $($pn:expr),* )) => (
+    (@call $slot:ident ( $($pn:expr),* )) => (
         match $slot {
             Some(func) => func($($pn),*),
             None => panic!("Function pointer slot was not initialized: {}", stringify!($slot)),

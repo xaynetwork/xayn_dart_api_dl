@@ -1,4 +1,4 @@
-use std::{ffi::c_void, marker::PhantomData};
+use std::{ffi::c_void, marker::PhantomData, ops::Deref};
 
 use dart_api_dl_sys::Dart_InitializeApiDL;
 
@@ -6,8 +6,6 @@ use once_cell::sync::OnceCell;
 use thiserror::Error;
 
 static INIT_ONCE: OnceCell<Result<DartRuntime, InitializationFailed>> = OnceCell::new();
-
-thread_local!(static THREAD_IN_DART: OnceCell<InDartRuntime> = OnceCell::new());
 
 /// Initializes the dart api dl.
 ///
@@ -52,40 +50,43 @@ impl DartRuntime {
             .unwrap_or(Err(InitializationFailed::InitNotYetCalled))
     }
 
-    /// Asserts this thread is inside of a dart runtime.
+    /// Asserts this thread is inside of an isolate.
+    ///
+    /// This will not automatically create a new
+    /// dart scope, as any native code based on the
+    /// dart dl api will normally
     ///
     /// # Safety
     ///
     /// This must only be called if:
     ///
-    /// - We are inside of the dart runtime.
-    /// - Any code running in the current thread will either:
-    ///   - be also inside of the dart runtime
-    ///   - or doesn't try to use dar api dl calls (i.e. dart shutdown)
-    pub unsafe fn assert_in_runtime() -> InDartRuntime {
-        THREAD_IN_DART.with(|tid| {
-            tid.get_or_init(|| InDartRuntime {
-                _phantom: PhantomData,
-            })
-            .clone()
-        })
+    /// - We are inside of an isolate (the main dart thread is a isolate, too),
+    ///   with a valid dart scope (which if native code is called from dart
+    ///   should always be the case).
+    pub unsafe fn assert_in_isolate<R>(&self, func: impl FnOnce(&InDartIsolate) -> R) -> R {
+        let guard = InDartIsolate {
+            runtime: *self,
+            _phantom: PhantomData,
+        };
+        func(&guard)
     }
 }
 
-/// Marker to prove you are inside of the dart runtime.
+/// Guard for using any dart dl api 's which need to be run in some form of dart scope.
 ///
 /// This acts as a interface to access all dart api dl
 /// functions which can only be called from inside of the
 /// dart runtime.
-#[derive(Clone, Copy)]
-pub struct InDartRuntime {
+pub struct InDartIsolate {
+    runtime: DartRuntime,
     _phantom: PhantomData<*mut ()>,
 }
 
-impl InDartRuntime {
-    /// Returns a [`InDart]
-    pub fn instance() -> Option<Self> {
-        THREAD_IN_DART.with(|tid| tid.get().cloned())
+impl Deref for InDartIsolate {
+    type Target = DartRuntime;
+
+    fn deref(&self) -> &Self::Target {
+        &self.runtime
     }
 }
 
@@ -106,7 +107,7 @@ mod tests {
 
     #[test]
     fn test_static_constraints() {
-        assert_not_impl_any!(InDartRuntime: Send, Sync);
+        assert_not_impl_any!(InDartIsolate: Send, Sync);
         assert_impl_all!(DartRuntime: Send, Sync);
     }
 }

@@ -87,7 +87,7 @@ impl ExternCObject {
             // 1. safety guarantees of the constructor
             // 2. dart strings in CObjects are guaranteed to be utf-8
             || unsafe {
-                std::str::from_utf8_unchecked(CStr::from_ptr(self.obj.value.as_string).to_bytes())
+                std::str::from_utf8(CStr::from_ptr(self.obj.value.as_string).to_bytes()).unwrap()
             },
         )
     }
@@ -345,7 +345,10 @@ impl Drop for OwnedCObject {
                     let peer = etd.peer;
                     let callback = etd.callback;
                     self.obj.type_ = Dart_CObject_Type::Dart_CObject_kNull;
-                    (callback.expect("unexpected null pointer callback"))(data as *mut c_void, peer);
+                    (callback.expect("unexpected null pointer callback"))(
+                        data as *mut c_void,
+                        peer,
+                    );
                 }
             }
             Dart_CObject_Type::Dart_CObject_kNumberOfTypes

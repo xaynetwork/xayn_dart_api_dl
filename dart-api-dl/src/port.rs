@@ -2,24 +2,35 @@ use std::ffi::CString;
 
 use dart_api_dl_sys::{
     Dart_CObject, Dart_CloseNativePort_DL, Dart_NativeMessageHandler_DL, Dart_NewNativePort_DL,
-    Dart_Port_DL, Dart_PostCObject_DL, Dart_PostInteger_DL, ILLEGAL_PORT,
+    Dart_NewSendPort_DL, Dart_Port_DL, Dart_PostCObject_DL, Dart_PostInteger_DL, Dart_Post_DL,
+    Dart_SendPortGetId_DL, ILLEGAL_PORT,
 };
 use thiserror::Error;
 
 use crate::{
     cobject::{ExternCObject, OwnedCObject},
-    livecycle::DartRuntime,
+    handle::{DartError, DartHandle},
+    lifecycle::{DartRuntime, InDartIsolate},
     slot::fpslot,
 };
 
 impl DartRuntime {
-    pub fn native_send_port(&self, id: Dart_Port_DL) -> NativeSendPort {
-        // SAFE:
-        // - putting in a arbitrary id is safe (but will fail sending)  //TODO: Check
-        // - we made sure the dart vm started
-        // - we have at a different place a unsafe contract which requires the library
-        //   consumer to handle shutdown properly.
+    /// Create a new [`NativeSendPort`].
+    ///
+    /// # Safety
+    ///
+    /// Id must be a valid send port.
+    pub unsafe fn native_send_port(&self, id: Dart_Port_DL) -> NativeSendPort {
         NativeSendPort(id)
+    }
+
+    /// Create a new [`NativeRecvPort`].
+    ///
+    /// # Safety
+    ///
+    /// Id must be a valid send port.
+    pub unsafe fn native_recv_port(&self, id: Dart_Port_DL) -> NativeRecvPort {
+        NativeRecvPort(id)
     }
 
     /// Creates a new [`NativeRecvPort`].
@@ -37,7 +48,8 @@ impl DartRuntime {
     ) -> Result<NativeRecvPort, PortManagementFailure> {
         let c_name = CString::new(name).map_err(|_| PortManagementFailure::CreationFailed)?;
 
-        let port = fpslot!(@call_slot Dart_NewNativePort_DL(c_name.as_ptr(), handler, handle_concurrently));
+        let port =
+            fpslot!(@call Dart_NewNativePort_DL(c_name.as_ptr(), handler, handle_concurrently));
 
         if port == ILLEGAL_PORT {
             Err(PortManagementFailure::CreationFailed)
@@ -54,7 +66,7 @@ impl DartRuntime {
         let c_name = CString::new(name).map_err(|_| PortManagementFailure::CreationFailed)?;
 
         let port = unsafe {
-            fpslot!(@call_slot Dart_NewNativePort_DL(c_name.as_ptr(), Some(handle_message::<N>), N::CONCURRENT_HANDLING))
+            fpslot!(@call Dart_NewNativePort_DL(c_name.as_ptr(), Some(handle_message::<N>), N::CONCURRENT_HANDLING))
         };
 
         return if port == ILLEGAL_PORT {
@@ -98,7 +110,7 @@ impl NativeSendPort {
     pub fn post_integer(&self, message: i64) -> Result<(), PortManagementFailure> {
         // SAFE: As long as trying to send to a closed port is safe, which should be
         //       safe for darts security model to work.
-        if unsafe { fpslot!(@call_slot Dart_PostInteger_DL(self.0, message)) } {
+        if unsafe { fpslot!(@call Dart_PostInteger_DL(self.0, message)) } {
             Ok(())
         } else {
             Err(PortManagementFailure::PostingFailed(self.clone()))
@@ -119,11 +131,29 @@ impl NativeSendPort {
     /// If sending fails the external typed data is still be in the [`OwnedCObject`]
     /// and can be reused.
     ///
-    ///
     pub fn post_cobject(&self, cobject: &mut OwnedCObject) -> Result<(), PortManagementFailure> {
         // SAFE: As long as `OwnedCObject` was properly constructed and is kept in a sound
         //       sate which is a requirements of it's unsafe interfaces.
-        if unsafe { fpslot!(@call_slot Dart_PostCObject_DL(self.0, cobject.as_ptr_mut())) } {
+        if unsafe { fpslot!(@call Dart_PostCObject_DL(self.0, cobject.as_ptr_mut())) } {
+            Ok(())
+        } else {
+            Err(PortManagementFailure::PostingFailed(self.clone()))
+        }
+    }
+
+    /// Posts a dart handle.
+    ///
+    /// There are the same restrictions for posting a dart handle as there are for
+    /// for calling `.send(...)` on a `SendPort` in dart.
+    pub fn post(
+        &self,
+        _ctx: &InDartIsolate,
+        dart_object: DartHandle,
+    ) -> Result<(), PortManagementFailure> {
+        // SAFE:
+        // - we know we are in the dart runtime
+        // - the message is fully handled by dart
+        if unsafe { fpslot!(@call Dart_Post_DL(self.0, dart_object.raw_handle())) } {
             Ok(())
         } else {
             Err(PortManagementFailure::PostingFailed(self.clone()))
@@ -140,17 +170,33 @@ pub struct NativeRecvPort(Dart_Port_DL);
 
 impl NativeRecvPort {
     /// Closes this [`NativeRecvPort`].
-    ///
     pub fn close(self) -> Result<(), PortManagementFailure> {
         // SAFE:
         // - Is save is calling dart functions is safe
         // - and if calling it a bad port id is safe
         //
         // Both should be the case
-        if unsafe { fpslot!(@call_slot Dart_CloseNativePort_DL(self.0)) } {
+        if unsafe { fpslot!(@call Dart_CloseNativePort_DL(self.0)) } {
             Ok(())
         } else {
             Err(PortManagementFailure::ClosingFailed(self.clone()))
+        }
+    }
+
+    /// Creates a new send port for this port.
+    pub fn new_send_port<'a>(
+        &self,
+        ctx: &'a InDartIsolate,
+    ) -> Result<NativeSendPort, DartError<'a>> {
+        //   F(Dart_NewSendPort, Dart_Handle, (Dart_Port_DL port_id))
+        let handle =
+            unsafe { DartHandle::from_raw(ctx, fpslot!(@call Dart_NewSendPort_DL(self.0))) };
+        let handle = handle.into_result()?;
+        let mut port = ILLEGAL_PORT;
+        unsafe {
+            let handle = fpslot!(@call Dart_SendPortGetId_DL(handle.raw_handle(), &mut port));
+            DartHandle::from_raw(ctx, handle).into_result()?;
+            Ok(ctx.native_send_port(port))
         }
     }
 }
