@@ -1,4 +1,4 @@
-use std::{ffi::c_void, marker::PhantomData, ops::Deref};
+use std::ffi::c_void;
 
 use dart_api_dl_sys::Dart_InitializeApiDL;
 
@@ -50,45 +50,45 @@ impl DartRuntime {
             .unwrap_or(Err(InitializationFailed::InitNotYetCalled))
     }
 
-    /// Asserts this thread is inside of an isolate.
-    ///
-    /// This will not automatically create a new
-    /// dart scope, as any native code based on the
-    /// dart dl api will normally
-    ///
-    /// # Safety
-    ///
-    /// This must only be called if:
-    ///
-    /// - We are inside of an isolate (the main dart thread is a isolate, too),
-    ///   with a valid dart scope (which if native code is called from dart
-    ///   should always be the case).
-    pub unsafe fn assert_in_isolate<R>(&self, func: impl FnOnce(&InDartIsolate) -> R) -> R {
-        let guard = InDartIsolate {
-            runtime: *self,
-            _phantom: PhantomData,
-        };
-        func(&guard)
-    }
+    // /// Asserts this thread is inside of an isolate.
+    // ///
+    // /// This will not automatically create a new
+    // /// dart scope, as any native code based on the
+    // /// dart dl api will normally
+    // ///
+    // /// # Safety
+    // ///
+    // /// This must only be called if:
+    // ///
+    // /// - We are inside of an isolate (the main dart thread is a isolate, too),
+    // ///   with a valid dart scope (which if native code is called from dart
+    // ///   should always be the case).
+    // pub unsafe fn assert_in_isolate<R>(&self, func: impl FnOnce(&InDartIsolate) -> R) -> R {
+    //     let guard = InDartIsolate {
+    //         runtime: *self,
+    //         _phantom: PhantomData,
+    //     };
+    //     func(&guard)
+    // }
 }
 
-/// Guard for using any dart dl api 's which need to be run in some form of dart scope.
-///
-/// This acts as a interface to access all dart api dl
-/// functions which can only be called from inside of the
-/// dart runtime.
-pub struct InDartIsolate {
-    runtime: DartRuntime,
-    _phantom: PhantomData<*mut ()>,
-}
+// /// Guard for using any dart dl api 's which need to be run in some form of dart scope.
+// ///
+// /// This acts as a interface to access all dart api dl
+// /// functions which can only be called from inside of the
+// /// dart runtime.
+// pub struct InDartIsolate {
+//     runtime: DartRuntime,
+//     _phantom: PhantomData<*mut ()>,
+// }
 
-impl Deref for InDartIsolate {
-    type Target = DartRuntime;
+// impl Deref for InDartIsolate {
+//     type Target = DartRuntime;
 
-    fn deref(&self) -> &Self::Target {
-        &self.runtime
-    }
-}
+//     fn deref(&self) -> &Self::Target {
+//         &self.runtime
+//     }
+// }
 
 #[derive(Debug, Clone, Error)]
 #[non_exhaustive]
@@ -101,13 +101,13 @@ pub enum InitializationFailed {
 
 #[cfg(test)]
 mod tests {
-    use static_assertions::{assert_impl_all, assert_not_impl_any};
+    use static_assertions::assert_impl_all;
 
     use super::*;
 
     #[test]
     fn test_static_constraints() {
-        assert_not_impl_any!(InDartIsolate: Send, Sync);
+        // assert_not_impl_any!(InDartIsolate: Send, Sync);
         assert_impl_all!(DartRuntime: Send, Sync);
     }
 }
