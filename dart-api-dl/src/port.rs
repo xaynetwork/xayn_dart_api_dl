@@ -1,4 +1,4 @@
-use std::{ffi::CString, ops::Deref};
+use std::{ffi::CString, mem::forget, ops::Deref};
 
 use dart_api_dl_sys::{
     Dart_CObject, Dart_CloseNativePort_DL, Dart_NativeMessageHandler_DL, Dart_NewNativePort_DL,
@@ -8,7 +8,7 @@ use dart_api_dl_sys::{
 use thiserror::Error;
 
 use crate::{
-    cobject::{ExternCObject, OwnedCObject},
+    cobject::{CObjectType, ExternCObject, OwnedCObject},
     lifecycle::DartRuntime,
     slot::fpslot,
 };
@@ -16,7 +16,18 @@ use crate::{
 impl DartRuntime {
     /// Wraps the port.
     ///
-    /// Fails is `port == ILLEGAL_PORT`.
+    /// Returns `None` if `port == ILLEGAL_PORT`.
+    /// This is done so because `ILLEGAL_PORT` is in generally
+    /// used to indicate both "no port" and "somehow bad port".
+    ///
+    /// `origin_id` is set when creating a send port in dart to
+    /// the "default" port of the isolate the send port was created
+    /// in, but can be unset.
+    ///
+    /// Which means it's nearly always `ILLEGAL_PORT` for usages of this
+    /// function as it can be called outside of a dart isolate, and
+    /// because we have no way to access the port of a isolate we
+    /// might happen to be in.
     ///
     /// # Safety
     ///
@@ -28,15 +39,11 @@ impl DartRuntime {
         &self,
         port: Dart_Port_DL,
         origin: Dart_Port_DL,
-    ) -> Result<SendPort, PortCreatingFailed> {
-        if port == ILLEGAL_PORT {
-            Err(PortCreatingFailed)
-        } else {
-            Ok(SendPort {
-                port,
-                origin: (origin != ILLEGAL_PORT).then(|| origin),
-            })
-        }
+    ) -> Option<SendPort> {
+        (port != ILLEGAL_PORT).then(|| SendPort {
+            port,
+            origin: (origin != ILLEGAL_PORT).then(|| origin),
+        })
     }
 
     /// Wrap a port id as `NativeRecvPort`.
@@ -48,18 +55,8 @@ impl DartRuntime {
     /// - the port must be a native port
     /// - we must be allowed to close the native port without
     ///   causing safety issue
-    pub unsafe fn native_recv_port_from_raw(
-        &self,
-        port: Dart_Port_DL
-    ) -> Result<NativeRecvPort, PortCreatingFailed> {
-        if port == ILLEGAL_PORT {
-            Err(PortCreatingFailed)
-        } else {
-            Ok(NativeRecvPort(SendPort {
-                port,
-                origin: None,
-            }))
-        }
+    pub unsafe fn native_recv_port_from_raw(&self, port: Dart_Port_DL) -> Option<NativeRecvPort> {
+        (port != ILLEGAL_PORT).then(|| NativeRecvPort(SendPort { port, origin: None }))
     }
 
     /// Creates a new [`NativeRecvPort`].
@@ -74,8 +71,8 @@ impl DartRuntime {
         name: &str,
         handler: Dart_NativeMessageHandler_DL,
         handle_concurrently: bool,
-    ) -> Result<NativeRecvPort, PortCreatingFailed> {
-        let c_name = CString::new(name).map_err(|_| PortCreatingFailed)?;
+    ) -> Option<NativeRecvPort> {
+        let c_name = CString::new(name).ok()?;
 
         let port =
             fpslot!(@call Dart_NewNativePort_DL(c_name.as_ptr(), handler, handle_concurrently));
@@ -84,18 +81,18 @@ impl DartRuntime {
     }
 
     /// A rust-safe way to creates a new [`NativeRecvPort`].
-    pub fn native_recp_port<N>(&self, name: &str) -> Result<NativeRecvPort, PortCreatingFailed>
+    pub fn native_recv_port<N>(&self) -> Option<NativeRecvPort>
     where
         N: NativeMessageHandler,
     {
-        let c_name = CString::new(name).map_err(|_| PortCreatingFailed)?;
+        let c_name = CString::new(N::NAME).ok()?;
 
         let port = unsafe {
             fpslot!(@call Dart_NewNativePort_DL(c_name.as_ptr(), Some(handle_message::<N>), N::CONCURRENT_HANDLING))
         };
 
         return if port == ILLEGAL_PORT {
-            Err(PortCreatingFailed)
+            None
         } else {
             unsafe { self.native_recv_port_from_raw(port) }
         };
@@ -104,10 +101,10 @@ impl DartRuntime {
         where
             N: NativeMessageHandler,
         {
-            if let Some(port) = DartRuntime::instance().ok().and_then(|rt| rt.native_recv_port_from_raw(ourself).ok()) {
-                ExternCObject::with_pointer(data_ref, |data| N::handle_message(&port, data))
-            } else {
-                // shouldn't happen but we can't panic either
+            if let Ok(rt) = DartRuntime::instance() {
+                if let Some(port) = rt.native_recv_port_from_raw(ourself) {
+                    ExternCObject::with_pointer(data_ref, |data| N::handle_message(rt, &port, data))
+                }
             }
         }
     }
@@ -116,7 +113,8 @@ impl DartRuntime {
 /// Static rust-safe version of `Dart_NativeMessageHandler_DL`.
 pub trait NativeMessageHandler {
     const CONCURRENT_HANDLING: bool;
-    fn handle_message(ourself: &NativeRecvPort, data: &ExternCObject);
+    const NAME: &'static str;
+    fn handle_message(rt: DartRuntime, ourself: &NativeRecvPort, data: &mut ExternCObject);
 }
 
 /// Represents a "NativeSendPort" which can be used to send messages to dart.
@@ -136,9 +134,8 @@ pub struct SendPort {
 }
 
 impl SendPort {
-
-    pub fn as_raw(&self) -> Dart_Port_DL {
-        self.port
+    pub fn as_raw(&self) -> (Dart_Port_DL, Dart_Port_DL) {
+        (self.port, self.origin.unwrap_or(ILLEGAL_PORT))
     }
 
     /// Sends given integer to given port.
@@ -153,7 +150,12 @@ impl SendPort {
         }
     }
 
-    /// Sends given [`OwnedCObject`] to given port.
+    /// See: [`SendPort.post_cobject_mut()`].
+    pub fn post_cobject(&self, mut cobject: OwnedCObject) -> Result<(), PortPostMessageFailed> {
+        self.post_cobject_mut(&mut cobject)
+    }
+
+    /// Sends given [`ExternalCObject`] to given port.
     ///
     /// Like normally for data which is not externally typed a copy of the data is send
     /// over the port and the object stays unchanged (through it might get temp.
@@ -162,20 +164,29 @@ impl SendPort {
     ///
     /// In case of external typed data it will get send to the client, to avoid
     /// problem and allow auto dropping not send external typed data we set the
-    /// type of the [`OwnedCObject`] to `null`.
+    /// type of the [`ExternalCObject`] to `null`.
     ///
-    /// If sending fails the external typed data is still be in the [`OwnedCObject`]
+    /// If sending fails the external typed data is still be in the [`ExternalCObject`]
     /// and can be reused.
     ///
-    pub fn post_cobject(&self, cobject: &mut OwnedCObject) -> Result<(), PortPostMessageFailed> {
+    pub fn post_cobject_mut(
+        &self,
+        cobject: &mut ExternCObject,
+    ) -> Result<(), PortPostMessageFailed> {
+        let need_nulling = cobject.r#type() == Ok(CObjectType::ExternalTypedData);
         // SAFE: As long as `OwnedCObject` was properly constructed and is kept in a sound
         //       sate which is a requirements of it's unsafe interfaces.
         if unsafe { fpslot!(@call Dart_PostCObject_DL(self.port, cobject.as_ptr_mut())) } {
+            if need_nulling {
+                cobject.set_to_null();
+            }
             Ok(())
         } else {
             Err(PortPostMessageFailed)
         }
     }
+
+    //TODO post_slice(&mut [&mut ExternalCObject]) which doesn't allocate a vec or box the objects
 }
 
 /// Handler for a native receiver port.
@@ -184,6 +195,15 @@ impl SendPort {
 #[derive(Debug)]
 pub struct NativeRecvPort(SendPort);
 
+impl NativeRecvPort {
+    /// Prevent drop form closing this type.
+    pub fn leak(self) -> SendPort {
+        let port = *self;
+        forget(self);
+        port
+    }
+}
+
 impl Drop for NativeRecvPort {
     fn drop(&mut self) {
         // SAFE:
@@ -191,7 +211,7 @@ impl Drop for NativeRecvPort {
         // - and if calling it a bad port id is safe
         //
         // Both should be the case
-        unsafe { fpslot!(@call Dart_CloseNativePort_DL(self.as_raw())) };
+        unsafe { fpslot!(@call Dart_CloseNativePort_DL(self.as_raw().0)) };
     }
 }
 
@@ -207,6 +227,15 @@ impl Deref for NativeRecvPort {
 #[error("Posting message failed.")]
 pub struct PortPostMessageFailed;
 
-#[derive(Debug, Error)]
-#[error("Posting message failed.")]
-pub struct PortCreatingFailed;
+#[cfg(test)]
+mod tests {
+    use static_assertions::assert_impl_all;
+
+    use super::*;
+
+    #[test]
+    fn test_static_assertions() {
+        assert_impl_all!(SendPort: Send, Sync, Copy, Clone);
+        assert_impl_all!(NativeRecvPort: Send, Sync);
+    }
+}

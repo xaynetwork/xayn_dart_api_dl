@@ -7,6 +7,8 @@ use thiserror::Error;
 
 static INIT_ONCE: OnceCell<Result<DartRuntime, InitializationFailed>> = OnceCell::new();
 
+pub type InitData = *mut c_void;
+
 /// Initializes the dart api dl.
 ///
 /// Calling any other dart binding functions before this fails.
@@ -20,7 +22,7 @@ static INIT_ONCE: OnceCell<Result<DartRuntime, InitializationFailed>> = OnceCell
 /// used after first this call succeeded and then the dart vm stopped.
 ///
 pub unsafe fn initialize_dart_api_dl(
-    initialize_api_dl_data: *mut c_void,
+    initialize_api_dl_data: InitData,
 ) -> Result<DartRuntime, InitializationFailed> {
     INIT_ONCE
         .get_or_init(|| {
