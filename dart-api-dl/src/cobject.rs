@@ -71,7 +71,7 @@ impl ExternCObject {
     }
 
     pub fn as_null(&self, rt: DartRuntime) -> Option<()> {
-        if let Ok(CObjectRef::Null) = self.as_enum(rt) {
+        if let Ok(CObjectRef::Null) = self.value_ref(rt) {
             Some(())
         } else {
             None
@@ -79,7 +79,7 @@ impl ExternCObject {
     }
 
     pub fn as_bool(&self, rt: DartRuntime) -> Option<bool> {
-        if let Ok(CObjectRef::Bool(b)) = self.as_enum(rt) {
+        if let Ok(CObjectRef::Bool(b)) = self.value_ref(rt) {
             Some(b)
         } else {
             None
@@ -87,7 +87,7 @@ impl ExternCObject {
     }
 
     pub fn as_int32(&self, rt: DartRuntime) -> Option<i32> {
-        if let Ok(CObjectRef::Int32(v)) = self.as_enum(rt) {
+        if let Ok(CObjectRef::Int32(v)) = self.value_ref(rt) {
             Some(v)
         } else {
             None
@@ -95,7 +95,7 @@ impl ExternCObject {
     }
 
     pub fn as_int64(&self, rt: DartRuntime) -> Option<i64> {
-        if let Ok(CObjectRef::Int64(v)) = self.as_enum(rt) {
+        if let Ok(CObjectRef::Int64(v)) = self.value_ref(rt) {
             Some(v)
         } else {
             None
@@ -111,7 +111,7 @@ impl ExternCObject {
     }
 
     pub fn as_double(&self, rt: DartRuntime) -> Option<f64> {
-        if let Ok(CObjectRef::Double(d)) = self.as_enum(rt) {
+        if let Ok(CObjectRef::Double(d)) = self.value_ref(rt) {
             Some(d)
         } else {
             None
@@ -119,7 +119,7 @@ impl ExternCObject {
     }
 
     pub fn as_string(&self, rt: DartRuntime) -> Option<&str> {
-        if let Ok(CObjectRef::String(s)) = self.as_enum(rt) {
+        if let Ok(CObjectRef::String(s)) = self.value_ref(rt) {
             Some(s)
         } else {
             None
@@ -127,7 +127,7 @@ impl ExternCObject {
     }
 
     pub fn as_array(&self, rt: DartRuntime) -> Option<&[&ExternCObject]> {
-        if let Ok(CObjectRef::Array(array)) = self.as_enum(rt) {
+        if let Ok(CObjectRef::Array(array)) = self.value_ref(rt) {
             Some(array)
         } else {
             None
@@ -141,7 +141,7 @@ impl ExternCObject {
         if let Ok(CObjectRef::TypedData {
             data,
             external_typed,
-        }) = self.as_enum(rt)
+        }) = self.value_ref(rt)
         {
             Some((data, external_typed))
         } else {
@@ -150,7 +150,7 @@ impl ExternCObject {
     }
 
     pub fn as_send_port(&self, rt: DartRuntime) -> Option<Option<SendPort>> {
-        if let Ok(CObjectRef::SendPort(port)) = self.as_enum(rt) {
+        if let Ok(CObjectRef::SendPort(port)) = self.value_ref(rt) {
             Some(port)
         } else {
             None
@@ -158,7 +158,7 @@ impl ExternCObject {
     }
 
     pub fn as_capability(&self, rt: DartRuntime) -> Option<Capability> {
-        if let Ok(CObjectRef::Capability(cap)) = self.as_enum(rt) {
+        if let Ok(CObjectRef::Capability(cap)) = self.value_ref(rt) {
             Some(cap)
         } else {
             None
@@ -180,7 +180,7 @@ impl ExternCObject {
     /// If the type is known returns a enums with a type specific reference to the data.
     ///
     /// Copy types are provided as copy instead of as
-    pub fn as_enum(&self, rt: DartRuntime) -> Result<CObjectRef, UnknownCObjectType> {
+    pub fn value_ref(&self, rt: DartRuntime) -> Result<CObjectRef, UnknownCObjectType> {
         use CObjectRef::*;
         let r#type = self.r#type()?;
         match r#type {
@@ -271,7 +271,7 @@ impl Debug for ExternCObject {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         if let Ok(rt) = DartRuntime::instance() {
             f.debug_struct("ExternCObject")
-                .field("as_enum", &self.as_enum(rt))
+                .field("as_enum", &self.value_ref(rt))
                 .finish()
         } else {
             f.debug_struct("ExternCObject")
@@ -473,6 +473,7 @@ unsafe extern "C" fn drop_boxed_peer<T>(_data: *mut c_void, peer: *mut c_void) {
 }
 
 /// Wrapper around a `Dart_CObject` which is owned by rust.
+#[derive(Debug)]
 #[repr(transparent)]
 pub struct OwnedCObject(ExternCObject);
 
@@ -517,8 +518,8 @@ impl OwnedCObject {
         })
     }
 
-    pub fn string(val: &str) -> Result<Self, NulError> {
-        let val = CString::new(val)?.into_raw();
+    pub fn string(val: impl AsRef<str>) -> Result<Self, NulError> {
+        let val = CString::new(val.as_ref())?.into_raw();
         Ok(Self::wrap_raw(Dart_CObject {
             type_: Dart_CObject_Type::Dart_CObject_kString,
             value: _Dart_CObject__bindgen_ty_1 { as_string: val },

@@ -103,7 +103,8 @@ impl DartRuntime {
         {
             if let Ok(rt) = DartRuntime::instance() {
                 if let Some(port) = rt.native_recv_port_from_raw(ourself) {
-                    ExternCObject::with_pointer(data_ref, |data| N::handle_message(rt, &port, data))
+                    ExternCObject::with_pointer(data_ref, |data| N::handle_message(rt, &port, data));
+                    forget(port);
                 }
             }
         }
