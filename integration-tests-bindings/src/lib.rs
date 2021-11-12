@@ -112,20 +112,15 @@ impl CmdHandler {
                 let chan = ADDER_THREAD.lock().unwrap().clone();
                 chan.send((a, b, respond_to))
                     .map_err(|_| "Adder was shutdown".to_owned())?;
-            },
+            }
             "hy" => {
-                let msg = OwnedCObject::string("hy hy ho")
-                    .map_err(|v| v.to_string())?;
-                respond_to
-                    .post_cobject(msg)
-                    .map_err(|v| v.to_string())?;
-            },
+                let msg = OwnedCObject::string("hy hy ho").map_err(|v| v.to_string())?;
+                respond_to.post_cobject(msg).map_err(|v| v.to_string())?;
+            }
             "send etd" => {
                 let msg = OwnedCObject::external_typed_data(vec![1u8, 12, 33]);
-                respond_to
-                    .post_cobject(msg)
-                    .map_err(|v| v.to_string())?;
-            },
+                respond_to.post_cobject(msg).map_err(|v| v.to_string())?;
+            }
             _ => {
                 return Err("Unknown Command".to_owned());
             }

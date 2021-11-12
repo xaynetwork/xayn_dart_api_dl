@@ -162,6 +162,7 @@ fn command_output(cmd: &mut Command) -> String {
 fn download_dart_src(dart_version: &str, out_dir: &Path) {
     eprintln!("Downloading dart version: {:?}", dart_version);
     let git_out_dir = temp_dir();
+    //TODO use `git sparse-checkout` instead.
     let ec = Command::new("git")
         .args(&["clone", "--depth", "1", "--branch"])
         .arg(dart_version)
