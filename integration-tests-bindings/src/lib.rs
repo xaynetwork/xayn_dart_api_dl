@@ -13,8 +13,8 @@ use once_cell::sync::Lazy;
 use dart_api_dl::{
     cobject::{CObjectRef, ExternCObject, OwnedCObject},
     initialize_dart_api_dl,
-    port::{NativeMessageHandler, NativeRecvPort, PortPostMessageFailed, SendPort},
-    DartRuntime, Dart_Port_DL, InitData, InitializationFailed,
+    port::{DartPortId, NativeMessageHandler, NativeRecvPort, PortPostMessageFailed, SendPort},
+    DartRuntime, InitData, InitializationFailed,
 };
 use thiserror::Error;
 
@@ -41,7 +41,7 @@ pub unsafe extern "C" fn setup_cmd_handler(
     setup_cmd_handler_inner(respond_to).is_ok()
 }
 
-unsafe fn setup_cmd_handler_inner(respond_to: Dart_Port_DL) -> Result<(), SetupError> {
+unsafe fn setup_cmd_handler_inner(respond_to: DartPortId) -> Result<(), SetupError> {
     log("setup-0");
     let rt = DartRuntime::instance()?;
     log("setup-1");
