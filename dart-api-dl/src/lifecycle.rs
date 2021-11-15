@@ -45,11 +45,16 @@ pub struct DartRuntime {
 
 impl DartRuntime {
     /// If [`initialize_dart_api_dl`] was called before, this will return the initialization result.
-    pub fn instance() -> Result<DartRuntime, InitializationFailed> {
+    pub fn instance() -> Result<Self, InitializationFailed> {
         INIT_ONCE
             .get()
             .cloned()
             .unwrap_or(Err(InitializationFailed::InitNotYetCalled))
+    }
+
+    #[cfg(test)]
+    pub(crate) unsafe fn instance_unchecked() -> Self {
+        DartRuntime { _priv: () }
     }
 }
 

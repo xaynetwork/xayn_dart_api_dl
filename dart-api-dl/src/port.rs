@@ -10,6 +10,7 @@ use thiserror::Error;
 use crate::{
     cobject::{CObjectType, ExternCObject, OwnedCObject},
     lifecycle::DartRuntime,
+    panic::catch_unwind_panic_as_cobject,
     slot::fpslot,
 };
 
@@ -113,7 +114,11 @@ impl DartRuntime {
                 if let Some(port) = rt.native_recv_port_from_raw(ourself) {
                     //TODO catch_unwind
                     ExternCObject::with_pointer(data_ref, |data| {
-                        N::handle_message(rt, &port, data)
+                        catch_unwind_panic_as_cobject(
+                            data,
+                            |data| N::handle_message(rt, &port, data),
+                            |data, panic_obj| N::handle_panic(rt, &port, data, panic_obj),
+                        );
                     });
                     forget(port);
                 }
@@ -127,6 +132,12 @@ pub trait NativeMessageHandler {
     const CONCURRENT_HANDLING: bool;
     const NAME: &'static str;
     fn handle_message(rt: DartRuntime, ourself: &NativeRecvPort, data: &mut ExternCObject);
+    fn handle_panic(
+        rt: DartRuntime,
+        ourself: &NativeRecvPort,
+        data: &mut ExternCObject,
+        panic: &mut OwnedCObject,
+    );
 }
 
 /// Represents a "NativeSendPort" which can be used to send messages to dart.

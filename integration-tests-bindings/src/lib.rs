@@ -121,6 +121,9 @@ impl CmdHandler {
                 let msg = OwnedCObject::external_typed_data(vec![1u8, 12, 33]);
                 respond_to.post_cobject(msg).map_err(|v| v.to_string())?;
             }
+            "panic" => {
+                panic!("IT IS A PANIC");
+            }
             _ => {
                 return Err("Unknown Command".to_owned());
             }
@@ -145,6 +148,32 @@ impl NativeMessageHandler for CmdHandler {
                     }
                 }
             }
+        }
+    }
+
+    fn handle_panic(
+        rt: DartRuntime,
+        _ourself: &NativeRecvPort,
+        data: &mut ExternCObject,
+        panic: &mut OwnedCObject,
+    ) {
+        let value_ref = match data.value_ref(rt) {
+            Ok(r) => r,
+            Err(_) => return,
+        };
+
+        let slice = match value_ref {
+            CObjectRef::Array(slice) => slice,
+            _ => return,
+        };
+
+        let send_port = match slice.get(0).and_then(|v| v.as_send_port(rt)) {
+            Some(Some(s)) => s,
+            _ => return,
+        };
+
+        if let Err(_err) = send_port.post_cobject_mut(panic) {
+            //TODO
         }
     }
 }

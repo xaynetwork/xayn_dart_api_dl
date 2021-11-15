@@ -519,11 +519,27 @@ impl OwnedCObject {
     }
 
     pub fn string(val: impl AsRef<str>) -> Result<Self, NulError> {
-        let val = CString::new(val.as_ref())?.into_raw();
+        let val = CString::new(val.as_ref())?;
         Ok(Self::wrap_raw(Dart_CObject {
             type_: Dart_CObject_Type::Dart_CObject_kString,
-            value: _Dart_CObject__bindgen_ty_1 { as_string: val },
+            value: _Dart_CObject__bindgen_ty_1 {
+                as_string: val.into_raw(),
+            },
         }))
+    }
+
+    /// Like string, but cut's of when encountering a `'\0'`.
+    pub fn string_lossy(val: impl AsRef<str>) -> Self {
+        let bytes = val.as_ref().as_bytes();
+        let end_idx = bytes.iter().position(|b| *b == 0).unwrap_or(bytes.len());
+        //Safe we just did the checks
+        let c_string = unsafe { CString::from_vec_unchecked(bytes[..end_idx].to_owned()) };
+        Self::wrap_raw(Dart_CObject {
+            type_: Dart_CObject_Type::Dart_CObject_kString,
+            value: _Dart_CObject__bindgen_ty_1 {
+                as_string: c_string.into_raw(),
+            },
+        })
     }
 
     /// Create a CObject representing a send port.

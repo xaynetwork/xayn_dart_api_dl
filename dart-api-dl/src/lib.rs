@@ -1,5 +1,6 @@
 pub mod cobject;
 mod lifecycle;
+mod panic;
 pub mod port;
 mod slot;
 

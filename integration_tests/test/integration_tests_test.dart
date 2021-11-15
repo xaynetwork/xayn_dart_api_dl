@@ -39,4 +39,9 @@ void main() async {
     ]);
     await Commander.sendCmd('recv ttd', [data]);
   }, skip: true);
+
+  test('panic catching works', () async {
+    dynamic res = await Commander.sendCmd('panic');
+    expect(res, equals('IT IS A PANIC'));
+  });
 }
