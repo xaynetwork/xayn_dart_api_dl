@@ -1,11 +1,11 @@
 [package]
 name = "dart-api-dl"
-version = "0.1.0+2.0.0"
+version = "0.3.0+2.0.0"
 edition = "2021"
 
 
 [dependencies]
-dart-api-dl-sys = "0.1.0"
+dart-api-dl-sys = "0.3.0"
 thiserror = "1.0.30"
 static_assertions = "1.1.0"
 once_cell = "1.8.0"

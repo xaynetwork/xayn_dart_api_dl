@@ -34,7 +34,7 @@ impl DartRuntime {
     /// The caller must make sure `port` refers
     /// to a valid port we are allowed to send
     /// messages to.
-    ///
+    //FIXME make safe, it IS safe
     pub unsafe fn send_port_from_raw(
         &self,
         port: Dart_Port_DL,

@@ -497,14 +497,14 @@ impl OwnedCObject {
         })
     }
 
-    pub fn i32(val: i32) -> Self {
+    pub fn int32(val: i32) -> Self {
         Self::wrap_raw(Dart_CObject {
             type_: Dart_CObject_Type::Dart_CObject_kInt32,
             value: _Dart_CObject__bindgen_ty_1 { as_int32: val },
         })
     }
 
-    pub fn i64(val: i64) -> Self {
+    pub fn int64(val: i64) -> Self {
         Self::wrap_raw(Dart_CObject {
             type_: Dart_CObject_Type::Dart_CObject_kInt64,
             value: _Dart_CObject__bindgen_ty_1 { as_int64: val },
