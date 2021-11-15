@@ -254,7 +254,7 @@ impl ExternCObject {
                 // - we checked the type
                 Ok(SendPort(unsafe {
                     let sp = &self.obj.value.as_send_port;
-                    rt.send_port_from_raw(sp.id, sp.origin_id)
+                    rt.send_port_from_raw_with_origin(sp.id, sp.origin_id)
                 }))
             }
             CObjectType::Capability => {

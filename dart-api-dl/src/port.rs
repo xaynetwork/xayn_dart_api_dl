@@ -1,8 +1,8 @@
 use std::{ffi::CString, mem::forget, ops::Deref};
 
 use dart_api_dl_sys::{
-    Dart_CObject, Dart_CloseNativePort_DL, Dart_NativeMessageHandler_DL, Dart_NewNativePort_DL,
-    Dart_Port_DL, Dart_PostCObject_DL, Dart_PostInteger_DL, ILLEGAL_PORT,
+    Dart_CObject, Dart_CloseNativePort_DL, Dart_NewNativePort_DL, Dart_Port_DL,
+    Dart_PostCObject_DL, Dart_PostInteger_DL, ILLEGAL_PORT,
 };
 
 use thiserror::Error;
@@ -13,7 +13,20 @@ use crate::{
     slot::fpslot,
 };
 
+type DartNativeMessageHandler =
+    unsafe extern "C" fn(dest_port_id: Dart_Port_DL, message: *mut Dart_CObject);
+
 impl DartRuntime {
+    /// Wraps the port.
+    ///
+    /// Returns `None` if `port == ILLEGAL_PORT`.
+    /// This is done so because `ILLEGAL_PORT` is in generally
+    /// used to indicate both "no port" and "somehow bad port".
+    ///
+    pub fn send_port_from_raw(&self, port: Dart_Port_DL) -> Option<SendPort> {
+        self.send_port_from_raw_with_origin(port, ILLEGAL_PORT)
+    }
+
     /// Wraps the port.
     ///
     /// Returns `None` if `port == ILLEGAL_PORT`.
@@ -29,13 +42,7 @@ impl DartRuntime {
     /// because we have no way to access the port of a isolate we
     /// might happen to be in.
     ///
-    /// # Safety
-    ///
-    /// The caller must make sure `port` refers
-    /// to a valid port we are allowed to send
-    /// messages to.
-    //FIXME make safe, it IS safe
-    pub unsafe fn send_port_from_raw(
+    pub fn send_port_from_raw_with_origin(
         &self,
         port: Dart_Port_DL,
         origin: Dart_Port_DL,
@@ -49,13 +56,7 @@ impl DartRuntime {
     /// Wrap a port id as `NativeRecvPort`.
     ///
     /// This closed the port when this wrapper is dropped.
-    ///
-    /// # Safety
-    ///
-    /// - the port must be a native port
-    /// - we must be allowed to close the native port without
-    ///   causing safety issue
-    pub unsafe fn native_recv_port_from_raw(&self, port: Dart_Port_DL) -> Option<NativeRecvPort> {
+    pub fn native_recv_port_from_raw(&self, port: Dart_Port_DL) -> Option<NativeRecvPort> {
         (port != ILLEGAL_PORT).then(|| NativeRecvPort(SendPort { port, origin: None }))
     }
 
@@ -63,19 +64,17 @@ impl DartRuntime {
     ///
     /// # Safety
     ///
-    /// The `handler` muss be sound under given `handle_concurrently` option and
-    /// the conditions it's correctly used by dart/this library.
+    /// The `handler` muss be safe to use under given `handle_concurrently` option.
     ///
-    pub unsafe fn unsafe_native_recp_port(
+    unsafe fn unsafe_native_recp_port(
         &self,
         name: &str,
-        handler: Dart_NativeMessageHandler_DL,
+        handler: DartNativeMessageHandler,
         handle_concurrently: bool,
     ) -> Option<NativeRecvPort> {
         let c_name = CString::new(name).ok()?;
 
-        let port =
-            fpslot!(@call Dart_NewNativePort_DL(c_name.as_ptr(), handler, handle_concurrently));
+        let port = fpslot!(@call Dart_NewNativePort_DL(c_name.as_ptr(), Some(handler), handle_concurrently));
 
         self.native_recv_port_from_raw(port)
     }
@@ -85,16 +84,9 @@ impl DartRuntime {
     where
         N: NativeMessageHandler,
     {
-        let c_name = CString::new(N::NAME).ok()?;
-
-        let port = unsafe {
-            fpslot!(@call Dart_NewNativePort_DL(c_name.as_ptr(), Some(handle_message::<N>), N::CONCURRENT_HANDLING))
-        };
-
-        return if port == ILLEGAL_PORT {
-            None
-        } else {
-            unsafe { self.native_recv_port_from_raw(port) }
+        //SAFE: The handle_message wrapper provides a safe abstraction
+        return unsafe {
+            self.unsafe_native_recp_port(N::NAME, handle_message::<N>, N::CONCURRENT_HANDLING)
         };
 
         unsafe extern "C" fn handle_message<N>(ourself: Dart_Port_DL, data_ref: *mut Dart_CObject)
@@ -103,6 +95,7 @@ impl DartRuntime {
         {
             if let Ok(rt) = DartRuntime::instance() {
                 if let Some(port) = rt.native_recv_port_from_raw(ourself) {
+                    //TODO catch_unwind
                     ExternCObject::with_pointer(data_ref, |data| {
                         N::handle_message(rt, &port, data)
                     });
@@ -232,7 +225,8 @@ pub struct PortPostMessageFailed;
 
 #[cfg(test)]
 mod tests {
-    use static_assertions::assert_impl_all;
+    use dart_api_dl_sys::Dart_NativeMessageHandler_DL;
+    use static_assertions::{assert_impl_all, assert_type_eq_all};
 
     use super::*;
 
@@ -240,5 +234,11 @@ mod tests {
     fn test_static_assertions() {
         assert_impl_all!(SendPort: Send, Sync, Copy, Clone);
         assert_impl_all!(NativeRecvPort: Send, Sync);
+
+        assert_type_eq_all!(Dart_Port_DL, i64);
+        assert_type_eq_all!(
+            Option<DartNativeMessageHandler>,
+            Dart_NativeMessageHandler_DL
+        );
     }
 }

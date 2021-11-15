@@ -14,7 +14,7 @@ use dart_api_dl::{
     cobject::{CObjectRef, ExternCObject, OwnedCObject},
     initialize_dart_api_dl,
     port::{NativeMessageHandler, NativeRecvPort, PortPostMessageFailed, SendPort},
-    DartRuntime, Dart_Port_DL, InitData, InitializationFailed, ILLEGAL_PORT,
+    DartRuntime, Dart_Port_DL, InitData, InitializationFailed,
 };
 use thiserror::Error;
 
@@ -46,7 +46,7 @@ unsafe fn setup_cmd_handler_inner(respond_to: Dart_Port_DL) -> Result<(), SetupE
     let rt = DartRuntime::instance()?;
     log("setup-1");
     let send_port = rt
-        .send_port_from_raw(respond_to, ILLEGAL_PORT)
+        .send_port_from_raw(respond_to)
         .ok_or(SetupError::PortCreatingFailed)?;
     log("setup-2");
     let adder_send_port = rt
