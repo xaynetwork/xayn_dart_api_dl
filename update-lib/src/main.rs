@@ -112,10 +112,10 @@ fn extract_dl_api_version(dart_src: &Path) -> (u64, u64) {
     const MAJOR_LINE: &str = "#define DART_API_DL_MAJOR_VERSION ";
     const MINOR_LINE: &str = "#define DART_API_DL_MINOR_VERSION ";
     for line in version_file.lines() {
-        let (slot, end) = if line.starts_with(MAJOR_LINE) {
-            (&mut major, &line[MAJOR_LINE.len()..])
-        } else if line.starts_with(MINOR_LINE) {
-            (&mut minor, &line[MINOR_LINE.len()..])
+        let (slot, end) = if let Some(major_str) = line.strip_prefix(MAJOR_LINE) {
+            (&mut major, major_str)
+        } else if let Some(minor_str) = line.strip_prefix(MINOR_LINE) {
+            (&mut minor, minor_str)
         } else {
             continue;
         };
@@ -178,14 +178,14 @@ fn download_dart_src(dart_version: &str, out_dir: &Path) {
         );
     }
 
-    create_dir(&out_dir);
+    create_dir(out_dir);
     copy_all_in(&git_out_dir.join("runtime/include"), out_dir, &["c", "h"]);
     copy_file(&git_out_dir.join("LICENSE"), &out_dir.join("LICENSE"));
 
     remove_dir_all(&git_out_dir);
 }
 
-fn copy_all_in(target_dir: &Path, out_dir: &Path, endings: &[&str]) {
+fn copy_all_in(target_dir: &Path, out_dir: &Path, extensions: &[&str]) {
     for dir_entry in target_dir
         .read_dir()
         .unwrap_or_else(|e| panic!("Copying files failed: {}\n{}", target_dir.display(), e))
@@ -196,19 +196,20 @@ fn copy_all_in(target_dir: &Path, out_dir: &Path, endings: &[&str]) {
         let to_path = &out_dir.join(dir_entry.file_name());
         if f_type.is_dir() {
             create_dir(to_path);
-            copy_all_in(from_path, to_path, endings);
-        } else if f_type.is_file()
-            && from_path
-                .extension()
-                .map(|stem| {
-                    let stem = stem.to_str().unwrap();
-                    endings.contains(&stem)
-                })
-                .unwrap_or(false)
-        {
+            copy_all_in(from_path, to_path, extensions);
+        } else if f_type.is_file() && check_extension(from_path, extensions) {
             copy_file(from_path, to_path);
         }
     }
+}
+
+fn check_extension(path: &Path, extensions: &[&str]) -> bool {
+    path.extension()
+        .map(|stem| {
+            let stem = stem.to_str().unwrap();
+            extensions.contains(&stem)
+        })
+        .unwrap_or(false)
 }
 
 fn temp_dir() -> PathBuf {

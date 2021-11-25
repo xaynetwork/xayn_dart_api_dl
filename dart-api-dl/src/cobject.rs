@@ -58,18 +58,16 @@ impl CObject {
     ///
     /// # Safety
     ///
-    /// 1. the pointer must point to a valid Dat_CObject
-    /// 2. the Dat_CObject must be sound/consistent, e.g.
+    /// 1. the pointer must point to a valid [`Dat_CObject`]
+    /// 2. the [`Dat_CObject`] must be sound/consistent, e.g.
     ///    the type and set data match and are sound. This
     ///    moves the unsafety of the various `as_*` methods
     ///    into this method.
     pub unsafe fn with_pointer<R>(
         ptr: *mut Dart_CObject,
-        func: impl for<'a>  FnOnce(&'a mut CObject) -> R,
+        func: impl for<'a> FnOnce(&'a mut CObject) -> R,
     ) -> R {
-        func(unsafe{
-            &mut *(ptr as *mut CObject)
-        })
+        func(unsafe { &mut *ptr.cast::<CObject>() })
     }
 
     /// Return the underlying pointer.
@@ -90,7 +88,7 @@ impl CObject {
         self.obj.type_ = Dart_CObject_Type::Dart_CObject_kNull;
     }
 
-    /// Returns the type (tag/variant) of the CObject.
+    /// Returns the type (tag/variant) of the [`CObject`].
     ///
     /// # Errors
     ///
@@ -137,11 +135,8 @@ impl CObject {
 
     /// Returns `Some` if the object is a 32bit or 64bit int.
     pub fn as_int(&self, rt: DartRuntime) -> Option<i64> {
-        if let Some(v) = self.as_int32(rt) {
-            Some(v as i64)
-        } else {
-            self.as_int64(rt)
-        }
+        self.as_int32(rt)
+            .map_or_else(|| self.as_int64(rt), |v| Some(v.into()))
     }
 
     /// Returns `Some` if the object is a 64bit float.
@@ -199,6 +194,7 @@ impl CObject {
     /// As we can send a `ILLEGAL_PORT` we can have a object which
     /// is a send port variant but doesn't contain a `SendPort` as
     /// such it's a `Option<Option<>>`.
+    #[allow(clippy::option_option)]
     pub fn as_send_port(&self, rt: DartRuntime) -> Option<Option<SendPort>> {
         if let Ok(CObjectRef::SendPort(port)) = self.value_ref(rt) {
             Some(port)
@@ -226,12 +222,24 @@ impl CObject {
         (self.obj.type_ == Dart_CObject_Type::Dart_CObject_kTypedData
             || self.obj.type_ == Dart_CObject_Type::Dart_CObject_kExternalTypedData)
             .then(|| {
-                // Safe:
-                // - if CObject is sound (which is required) the type check is enough
-                // - Like done by dart-lang/sdk, `as_external_typed_data` is made so that
-                //   it starts with the same layout as `as_typed_data`.
-                unsafe { self.obj.value.as_typed_data.type_ }.try_into()
+                // Safe: We checked the the object type.
+                unsafe { self.read_typed_data_type() }
             })
+    }
+
+    /// Reads the typed data type union field.
+    ///
+    /// # Safety
+    ///
+    /// Safe if the object type is either of:
+    ///
+    /// - `Dart_CObject_Type::Dart_CObject_kTypedData`
+    /// - `Dart_CObject_Type::Dart_CObject_kExternalTypedData`
+    unsafe fn read_typed_data_type(&self) -> Result<TypedDataType, UnknownTypedDataType> {
+        // It's safe to always read from `as_typed_data` as `Dart_CObject` is intentionally
+        // designed so that external typed data has the same fields in the same layout as
+        // typed data (just some additional ones)
+        unsafe { self.obj.value.as_typed_data.type_ }.try_into()
     }
 
     /// If the type is known returns a enums with a type specific reference to the data.
@@ -239,7 +247,12 @@ impl CObject {
     /// Copy types are provided as copy instead of a reference.
     ///
     /// All the `as_...` functions are based on this internally.
+    ///
+    /// # Errors
+    ///
+    /// If the object type is not supported an error is returned.
     pub fn value_ref(&self, rt: DartRuntime) -> Result<CObjectRef<'_>, UnknownCObjectType> {
+        #![allow(clippy::enum_glob_use)]
         use CObjectRef::*;
         let r#type = self.r#type()?;
         match r#type {
@@ -272,10 +285,10 @@ impl CObject {
                 // Safe:
                 // - CObject is sound
                 // - we checked the type
+                // - strings in CObject are utf-8 (and 0 terminated)
                 Ok(String(unsafe {
                     let c_str = CStr::from_ptr(self.obj.value.as_string);
-                    // Unwrap: Strings in CObject are always UTF-8
-                    std::str::from_utf8(c_str.to_bytes()).unwrap()
+                    std::str::from_utf8_unchecked(c_str.to_bytes())
                 }))
             }
             CObjectType::Array => {
@@ -288,12 +301,15 @@ impl CObject {
                     let ar = &self.obj.value.as_array;
                     // *mut *mut Dart_CObject
                     let ptr = ar.values as *const &CObject;
-                    slice::from_raw_parts(ptr, ar.length.try_into().unwrap())
+                    // This runs in FFI so we really don't want to panic, so
+                    // if length <0 we set length = 0 (which in itself is unsound).
+                    slice::from_raw_parts(ptr, ar.length.try_into().unwrap_or(0))
                 }))
             }
             CObjectType::TypedData | CObjectType::ExternalTypedData => {
-                //Unwrap: We know there is a typed data type.
-                let data = self.typed_data_type().unwrap().map(|data_type| {
+                //Safe: We checked the object type.
+                let type_res = unsafe { self.read_typed_data_type() };
+                let data = type_res.map(|data_type| {
                     // Safe:
                     // - CObject is sound
                     // - we checked the type
@@ -302,7 +318,9 @@ impl CObject {
                         TypedDataRef::from_raw(
                             data_type,
                             data.values as *const u8,
-                            data.length.try_into().unwrap(),
+                            // This runs in FFI so we really don't want to panic, so
+                            // if length <0 we set length = 0 (which in itself is unsound).
+                            data.length.try_into().unwrap_or(0),
                         )
                     }
                 });
@@ -420,25 +438,25 @@ pub enum TypedDataRef<'a> {
 
 impl TypedDataRef<'_> {
     unsafe fn from_raw(data_type: TypedDataType, data: *const u8, len: usize) -> Self {
-        #![allow(unsafe_op_in_unsafe_fn)]
-        use self::TypedDataRef::*;
+        #![allow(unsafe_op_in_unsafe_fn, clippy::enum_glob_use, clippy::cast_ptr_alignment)]
+        use TypedDataRef::*;
         use std::slice::from_raw_parts;
         match data_type {
             TypedDataType::ByteData => ByteData(from_raw_parts(data, len)),
-            TypedDataType::Int8 => Int8(from_raw_parts(data as *const i8, len)),
+            TypedDataType::Int8 => Int8(from_raw_parts(data.cast::<i8>(), len)),
             TypedDataType::Uint8 => Uint8(from_raw_parts(data, len)),
             TypedDataType::Uint8Clamped => Uint8Clamped(from_raw_parts(data, len)),
-            TypedDataType::Int16 => Int16(from_raw_parts(data as *const i16, len)),
-            TypedDataType::Uint16 => Uint16(from_raw_parts(data as *const u16, len)),
-            TypedDataType::Int32 => Int32(from_raw_parts(data as *const i32, len)),
-            TypedDataType::Uint32 => Uint32(from_raw_parts(data as *const u32, len)),
-            TypedDataType::Int64 => Int64(from_raw_parts(data as *const i64, len)),
-            TypedDataType::Uint64 => Uint64(from_raw_parts(data as *const u64, len)),
-            TypedDataType::Float32 => Float32(from_raw_parts(data as *const f32, len)),
-            TypedDataType::Float64 => Float64(from_raw_parts(data as *const f64, len)),
-            TypedDataType::Int32x4 => Int32x4(from_raw_parts(data as *const [i32; 4], len)),
-            TypedDataType::Float32x4 => Float32x4(from_raw_parts(data as *const [f32; 4], len)),
-            TypedDataType::Float64x2 => Float64x2(from_raw_parts(data as *const [f64; 2], len)),
+            TypedDataType::Int16 => Int16(from_raw_parts(data.cast::<i16>(), len)),
+            TypedDataType::Uint16 => Uint16(from_raw_parts(data.cast::<u16>(), len)),
+            TypedDataType::Int32 => Int32(from_raw_parts(data.cast::<i32>(), len)),
+            TypedDataType::Uint32 => Uint32(from_raw_parts(data.cast::<u32>(), len)),
+            TypedDataType::Int64 => Int64(from_raw_parts(data.cast::<i64>(), len)),
+            TypedDataType::Uint64 => Uint64(from_raw_parts(data.cast::<u64>(), len)),
+            TypedDataType::Float32 => Float32(from_raw_parts(data.cast::<f32>(), len)),
+            TypedDataType::Float64 => Float64(from_raw_parts(data.cast::<f64>(), len)),
+            TypedDataType::Int32x4 => Int32x4(from_raw_parts(data.cast::<[i32; 4]>(), len)),
+            TypedDataType::Float32x4 => Float32x4(from_raw_parts(data.cast::<[f32; 4]>(), len)),
+            TypedDataType::Float64x2 => Float64x2(from_raw_parts(data.cast::<[f64; 2]>(), len)),
         }
     }
 }
@@ -505,9 +523,9 @@ unsafe impl CustomExternalTyped for TypedData {
     fn into_external_typed_data(self) -> ExternalTypedData {
         match self {
             TypedData::ByteData(mut data) => {
-                let ptr = data.as_mut_ptr() as *mut u8;
+                let ptr = data.as_mut_ptr().cast::<u8>();
                 let length = data.len().try_into().unwrap();
-                let peer = Box::into_raw(Box::new(data)) as *mut c_void;
+                let peer = Box::into_raw(Box::new(data)).cast::<c_void>();
 
                 ExternalTypedData {
                     type_: TypedDataType::ByteData.into(),
@@ -520,9 +538,9 @@ unsafe impl CustomExternalTyped for TypedData {
             TypedData::Int8(data) => data.into_external_typed_data(),
             TypedData::Uint8(data) => data.into_external_typed_data(),
             TypedData::Uint8Clamped(mut data) => {
-                let ptr = data.as_mut_ptr() as *mut u8;
+                let ptr = data.as_mut_ptr().cast::<u8>();
                 let length = data.len().try_into().unwrap();
-                let peer = Box::into_raw(Box::new(data)) as *mut c_void;
+                let peer = Box::into_raw(Box::new(data)).cast::<c_void>();
 
                 ExternalTypedData {
                     type_: TypedDataType::ByteData.into(),
@@ -588,7 +606,7 @@ impl_custom_external_typed_data_for_vec!(
 );
 
 unsafe extern "C" fn drop_boxed_peer<T>(_data: *mut c_void, peer: *mut c_void) {
-    drop(unsafe { Box::from_raw(peer as *mut T) });
+    drop(unsafe { Box::from_raw(peer.cast::<T>()) });
 }
 
 /// Wrapper around a [`CObject`] which is owned by rust.
@@ -697,11 +715,15 @@ impl OwnedCObject {
     }
 
     /// Create a [`CObject`] containing a array of boxed [`OwnedCObject`]'s.
+    ///
+    #[allow(clippy::vec_box)]
     pub fn array(array: Vec<Box<OwnedCObject>>) -> Self {
         let bs = array.into_boxed_slice();
-        let len = bs.len().try_into().unwrap();
-        // SAFE: as CObject is repr(transparent) and box and *mut have same layout
-        let ptr = Box::into_raw(bs) as *mut *mut Dart_CObject;
+        // We can't really have a array.len() > isize::MAX here, but we
+        // don't really don't want to panic.
+        let len = bs.len().try_into().unwrap_or(isize::MAX);
+        // SAFE: as CObject is repr(transparent) as such `Box<CObject>` and `*mut Dart_CObject` have same layout.
+        let ptr = Box::into_raw(bs).cast::<*mut Dart_CObject>();
         Self::wrap_raw(Dart_CObject {
             type_: Dart_CObject_Type::Dart_CObject_kArray,
             value: _Dart_CObject__bindgen_ty_1 {
@@ -730,13 +752,13 @@ impl OwnedCObject {
     where
         CET: CustomExternalTyped,
     {
-        return Self::wrap_raw(Dart_CObject {
+        Self::wrap_raw(Dart_CObject {
             type_: Dart_CObject_Type::Dart_CObject_kExternalTypedData,
             value: _Dart_CObject__bindgen_ty_1 {
                 //Safe: due to the unsafe contract on CustomExternalTyped
                 as_external_typed_data: data.into_external_typed_data(),
             },
-        });
+        })
     }
 }
 
@@ -769,15 +791,10 @@ impl Drop for OwnedCObject {
                 self.obj.type_ = Dart_CObject_Type::Dart_CObject_kNull;
             }
             Dart_CObject_Type::Dart_CObject_kArray => drop(unsafe {
-                let len = self.obj.value.as_array.length as usize;
+                let len = self.obj.value.as_array.length.try_into().unwrap_or(0);
                 let ptr = self.obj.value.as_array.values;
                 Vec::from_raw_parts(ptr, len, len)
             }),
-            Dart_CObject_Type::Dart_CObject_kTypedData => {
-                // we don't create this currently, so we can't be in a
-                // situation where we need to drop it.
-                panic!("unsupported `OwnedCObject` format");
-            }
             Dart_CObject_Type::Dart_CObject_kExternalTypedData => {
                 // we can only hit this if we didn't send it, in
                 // which case we can drop it.
@@ -790,14 +807,14 @@ impl Drop for OwnedCObject {
                     let callback = etd.callback;
                     self.obj.type_ = Dart_CObject_Type::Dart_CObject_kNull;
                     (callback.expect("unexpected null pointer callback"))(
-                        data as *mut c_void,
+                        data.cast::<c_void>(),
                         peer,
                     );
                 }
             }
-            Dart_CObject_Type::Dart_CObject_kNumberOfTypes
-            | Dart_CObject_Type::Dart_CObject_kUnsupported
-            | _ => {
+            _ => {
+                // also panics on: Dart_CObject_Type::Dart_CObject_kTypedData
+                // we currently don't create it so we can't reach a drop with it
                 panic!("unsupported `OwnedCObject` format");
             }
         }
@@ -815,7 +832,7 @@ impl Default for OwnedCObject {
 /// # Safety
 ///
 /// The returned external typed data must be sound to
-/// use in a CObject.
+/// use in a [`CObject`].
 ///
 pub unsafe trait CustomExternalTyped {
     /// This should only be called by the `OwnedCObject` type.

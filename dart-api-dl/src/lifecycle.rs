@@ -96,6 +96,29 @@ pub enum InitializationFailed {
     InitFailed,
 }
 
+/// The slot for given function pointer was not initialized.
+///
+/// This can happen in two cases:
+///
+/// 1. The API was not successfully initialized,
+///    which is especially bad as reading the slots before initialization
+///    can cause unsound behavior due to race conditions.
+/// 2. The function is not supported in the API version used by the VM.
+#[derive(Debug, Error)]
+#[error("uninitialized function slot: {}", _0)]
+pub struct UninitializedFunctionSlot(pub(crate) &'static str);
+
+macro_rules! __fpslot {
+    (@call $slot:ident ( $($pn:expr),* )) => (
+        match $slot {
+            Some(func) => Ok(func($($pn),*)),
+            None => Err($crate::lifecycle::UninitializedFunctionSlot(stringify!($slot))),
+        }
+    );
+}
+
+pub(crate) use __fpslot as fpslot;
+
 #[cfg(test)]
 mod tests {
     use static_assertions::assert_impl_all;

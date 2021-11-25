@@ -12,16 +12,22 @@
     rust_2018_idioms,
     rust_2021_compatibility,
     unused_qualifications,
-    unsafe_op_in_unsafe_fn,
+    unsafe_op_in_unsafe_fn
 )]
 #![warn(missing_docs, unreachable_pub)]
-#![allow(clippy::must_use_candidate)]
+#![allow(
+    clippy::must_use_candidate,
+    clippy::items_after_statements,
+    clippy::module_name_repetitions
+)]
+// We use the zero sized `DartRuntime` type as a guard
+// so most of it's functions which have `self` don't use self.
+#![allow(clippy::unused_self)]
 
 pub mod cobject;
 mod lifecycle;
 mod panic;
 pub mod port;
-mod slot;
 
 pub use lifecycle::*;
 

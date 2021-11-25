@@ -19,6 +19,12 @@ class IntegrationTestsFfi {
           lookup)
       : _lookup = lookup;
 
+  /// Initializes the rust library.
+  ///
+  /// # Safety
+  ///
+  /// See `initialize_dart_api_dl` from the
+  /// `dart-api-dl` crate.
   int initialize(
     InitData init_data,
   ) {

@@ -13,7 +13,7 @@ fn main() {
     let header_out_file = dart_dir.join("include/IntegrationTestsFfi.h");
     let config_file = manifest_dir.join("cbindgen.toml");
 
-    println!("cargo:rerun-if-changed={}", "src/lib.rs");
+    println!("cargo:rerun-if-changed=src/lib.rs");
     println!("cargo:rerun-if-changed={}", config_file.display());
     println!("cargo:rerun-if-changed={}", header_out_file.display());
 

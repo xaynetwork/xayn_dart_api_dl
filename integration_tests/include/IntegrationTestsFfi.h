@@ -12,6 +12,14 @@
  */
 typedef void *InitData;
 
+/**
+ * Initializes the rust library.
+ *
+ * # Safety
+ *
+ * See `initialize_dart_api_dl` from the
+ * `dart-api-dl` crate.
+ */
 bool initialize(InitData init_data);
 
 bool setup_cmd_handler(int64_t respond_to);

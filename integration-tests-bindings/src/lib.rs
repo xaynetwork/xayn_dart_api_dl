@@ -10,12 +10,7 @@ use std::{
 
 use once_cell::sync::Lazy;
 
-use dart_api_dl::{
-    cobject::{CObjectRef, CObject, OwnedCObject},
-    initialize_dart_api_dl,
-    port::{DartPortId, NativeMessageHandler, NativeRecvPort, PortPostMessageFailed, SendPort},
-    DartRuntime, InitData, InitializationFailed,
-};
+use dart_api_dl::{DartRuntime, InitData, InitializationFailed, cobject::{CObjectRef, CObject, OwnedCObject}, initialize_dart_api_dl, port::{DartPortId, NativeMessageHandler, NativeRecvPort, PortCreationFailed, PortPostMessageFailed, SendPort}};
 use thiserror::Error;
 
 static LOGGER: Lazy<Mutex<File>> = Lazy::new(|| Mutex::new(File::create("/tmp/yolo.txt").unwrap()));
@@ -27,6 +22,12 @@ fn log(msg: impl Into<String>) {
     let _ = l.flush();
 }
 
+/// Initializes the rust library.
+///
+/// # Safety
+///
+/// See `initialize_dart_api_dl` from the
+/// `dart-api-dl` crate.
 #[no_mangle]
 pub unsafe extern "C" fn initialize(init_data: InitData) -> bool {
     log("pre-init");
@@ -34,24 +35,23 @@ pub unsafe extern "C" fn initialize(init_data: InitData) -> bool {
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn setup_cmd_handler(
+pub extern "C" fn setup_cmd_handler(
     // We can't use Dart_Port_DL as cbindgen doesn't know about bindgen.
     respond_to: i64,
 ) -> bool {
     setup_cmd_handler_inner(respond_to).is_ok()
 }
 
-unsafe fn setup_cmd_handler_inner(respond_to: DartPortId) -> Result<(), SetupError> {
+fn setup_cmd_handler_inner(respond_to: DartPortId) -> Result<(), SetupError> {
     log("setup-0");
     let rt = DartRuntime::instance()?;
     log("setup-1");
     let send_port = rt
         .send_port_from_raw(respond_to)
-        .ok_or(SetupError::PortCreatingFailed)?;
+        .ok_or(SetupError::MalformedMessage)?;
     log("setup-2");
     let adder_send_port = rt
-        .native_recv_port::<CmdHandler>()
-        .ok_or(SetupError::PortCreatingFailed)?
+        .native_recv_port::<CmdHandler>()?
         .leak();
     log("setup-3");
     let mut cobj = OwnedCObject::send_port(adder_send_port);
@@ -79,8 +79,9 @@ static ADDER_THREAD: Lazy<Mutex<Sender<(i64, i64, SendPort)>>> = Lazy::new(|| {
 #[error("setup failed")]
 enum SetupError {
     InitFailed(#[from] InitializationFailed),
-    PortCreatingFailed,
+    PortCreatingFailed(#[from] PortCreationFailed),
     PortPostMessageFailed(#[from] PortPostMessageFailed),
+    MalformedMessage
 }
 
 struct CmdHandler;
@@ -142,7 +143,7 @@ impl NativeMessageHandler for CmdHandler {
             if let Some(respond_to) = slice.get(0).and_then(|o| o.as_send_port(rt)).flatten() {
                 if let Err(err) = Self::handle_cmd(rt, respond_to, &slice[1..]) {
                     if let Ok(mut err) = OwnedCObject::string(format!("Error: {}", err)) {
-                        if let Err(_) = respond_to.post_cobject_mut(&mut err) {
+                        if respond_to.post_cobject_mut(&mut err).is_err() {
                             log(format!("Failed to post error: {:?}", err));
                         }
                     }
