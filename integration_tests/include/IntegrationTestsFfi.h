@@ -7,6 +7,9 @@
 #include <stdint.h>
 #include <stdlib.h>
 
+/**
+ * Alias for the void pointer passed to [`Dart_InitializeApiDL`].
+ */
 typedef void *InitData;
 
 bool initialize(InitData init_data);

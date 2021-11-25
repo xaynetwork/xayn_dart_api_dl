@@ -1,3 +1,20 @@
+//! This modules provides abstractions around `CObject`.
+//!
+//! The raw `Dart_CObject` does not only have some rust
+//! unsafe types but also needs to be handles differently
+//! depending on the context.
+//!
+//! As such we have multiple types:
+//!
+//! - [`CObject`] type which is read only.
+//!   You will either get a reference to it
+//!   from an external source or by dereferencing
+//!   [`OwnedCObject`].
+//!
+//! - [`OwnedCObject`] a instance we created and as
+//!   such we need to handle resource cleanup, like
+//!   freeing allocated string.
+//!
 use std::{
     ffi::{c_void, CStr, CString, NulError},
     fmt::{self, Debug},
@@ -21,6 +38,7 @@ pub use type_enums::*;
 pub type Capability = i64;
 
 /// External Typed Data as represented in a [`Dart_CObject`].
+//TODO
 pub type ExternalTypedData = _Dart_CObject__bindgen_ty_1__bindgen_ty_5;
 
 /// Wrapper around a `Dart_CObject` which can be read, but which we do not own.
@@ -31,11 +49,12 @@ pub type ExternalTypedData = _Dart_CObject__bindgen_ty_1__bindgen_ty_5;
 // and our new-type which we use to attach methods and safety to the dart type.
 #[repr(transparent)]
 
-pub struct ExternCObject {
+pub struct CObject {
     obj: Dart_CObject,
 }
 
-impl ExternCObject {
+impl CObject {
+    /// Cast a pointer to a `Dart_CObject` to a `CObject` for the duration of the closure.
     ///
     /// # Safety
     ///
@@ -46,17 +65,22 @@ impl ExternCObject {
     ///    into this method.
     pub unsafe fn with_pointer<R>(
         ptr: *mut Dart_CObject,
-        func: impl FnOnce(&mut ExternCObject) -> R,
+        func: impl for<'a>  FnOnce(&'a mut CObject) -> R,
     ) -> R {
-        let temp_ref = &mut *(ptr as *mut ExternCObject);
-        func(temp_ref)
+        func(unsafe{
+            &mut *(ptr as *mut CObject)
+        })
     }
 
+    /// Return the underlying pointer.
     ///
     /// # Safety
     ///
     /// If you use unsafe code to modify the underlying object
-    /// you MUST make sure it still is sound.
+    /// you MUST make sure it still is sound and that you do
+    /// not provoke can use-after free or double free situations.
+    ///
+    /// Preferable do not modify the object at all.
     pub fn as_ptr_mut(&mut self) -> *mut Dart_CObject {
         &mut self.obj
     }
@@ -66,10 +90,16 @@ impl ExternCObject {
         self.obj.type_ = Dart_CObject_Type::Dart_CObject_kNull;
     }
 
+    /// Returns the type (tag/variant) of the CObject.
+    ///
+    /// # Errors
+    ///
+    /// Fails if the type is not known (supported) by this library.
     pub fn r#type(&self) -> Result<CObjectType, UnknownCObjectType> {
         self.obj.type_.try_into()
     }
 
+    /// Returns `Some` if the object is null.
     pub fn as_null(&self, rt: DartRuntime) -> Option<()> {
         if let Ok(CObjectRef::Null) = self.value_ref(rt) {
             Some(())
@@ -78,6 +108,7 @@ impl ExternCObject {
         }
     }
 
+    /// Returns `Some` if the object is a bool.
     pub fn as_bool(&self, rt: DartRuntime) -> Option<bool> {
         if let Ok(CObjectRef::Bool(b)) = self.value_ref(rt) {
             Some(b)
@@ -86,6 +117,7 @@ impl ExternCObject {
         }
     }
 
+    /// Returns `Some` if the object is a 32bit int.
     pub fn as_int32(&self, rt: DartRuntime) -> Option<i32> {
         if let Ok(CObjectRef::Int32(v)) = self.value_ref(rt) {
             Some(v)
@@ -94,6 +126,7 @@ impl ExternCObject {
         }
     }
 
+    /// Returns `Some` if the object is a 64bit int.
     pub fn as_int64(&self, rt: DartRuntime) -> Option<i64> {
         if let Ok(CObjectRef::Int64(v)) = self.value_ref(rt) {
             Some(v)
@@ -102,6 +135,7 @@ impl ExternCObject {
         }
     }
 
+    /// Returns `Some` if the object is a 32bit or 64bit int.
     pub fn as_int(&self, rt: DartRuntime) -> Option<i64> {
         if let Some(v) = self.as_int32(rt) {
             Some(v as i64)
@@ -110,6 +144,7 @@ impl ExternCObject {
         }
     }
 
+    /// Returns `Some` if the object is a 64bit float.
     pub fn as_double(&self, rt: DartRuntime) -> Option<f64> {
         if let Ok(CObjectRef::Double(d)) = self.value_ref(rt) {
             Some(d)
@@ -118,6 +153,7 @@ impl ExternCObject {
         }
     }
 
+    /// Returns `Some` if the object is a string.
     pub fn as_string(&self, rt: DartRuntime) -> Option<&str> {
         if let Ok(CObjectRef::String(s)) = self.value_ref(rt) {
             Some(s)
@@ -126,7 +162,8 @@ impl ExternCObject {
         }
     }
 
-    pub fn as_array(&self, rt: DartRuntime) -> Option<&[&ExternCObject]> {
+    /// Returns `Some` if the object is a array of references to [`CObject`]s.
+    pub fn as_array(&self, rt: DartRuntime) -> Option<&[&CObject]> {
         if let Ok(CObjectRef::Array(array)) = self.value_ref(rt) {
             Some(array)
         } else {
@@ -134,10 +171,18 @@ impl ExternCObject {
         }
     }
 
+    /// Returns `Some` if the object is typed data.
+    ///
+    /// It's `Some((Ok(), _))` if it's typed data of a typed data
+    /// variant which is supported by this library.
+    ///
+    /// It's `Some(_, true)` if it's externally typed data, normally
+    /// if it's externally or not-externally typed data doesn't make
+    /// a difference for the consumer.
     pub fn as_typed_data(
         &self,
         rt: DartRuntime,
-    ) -> Option<(Result<TypedDataRef, UnknownTypedDataType>, bool)> {
+    ) -> Option<(Result<TypedDataRef<'_>, UnknownTypedDataType>, bool)> {
         if let Ok(CObjectRef::TypedData {
             data,
             external_typed,
@@ -149,6 +194,11 @@ impl ExternCObject {
         }
     }
 
+    /// Returns `Some` if the object is a send port.
+    ///
+    /// As we can send a `ILLEGAL_PORT` we can have a object which
+    /// is a send port variant but doesn't contain a `SendPort` as
+    /// such it's a `Option<Option<>>`.
     pub fn as_send_port(&self, rt: DartRuntime) -> Option<Option<SendPort>> {
         if let Ok(CObjectRef::SendPort(port)) = self.value_ref(rt) {
             Some(port)
@@ -157,6 +207,7 @@ impl ExternCObject {
         }
     }
 
+    /// Returns `Some` if the object is a capability.
     pub fn as_capability(&self, rt: DartRuntime) -> Option<Capability> {
         if let Ok(CObjectRef::Capability(cap)) = self.value_ref(rt) {
             Some(cap)
@@ -165,6 +216,12 @@ impl ExternCObject {
         }
     }
 
+    /// Returns `Some` if the object is typed data.
+    ///
+    /// This is similar to [`CObject.as_typed_data()`] but only returns the typed
+    /// data type.
+    ///
+    /// Returns `Some(Err(_))` if the typed data type isn't supported by this library.
     pub fn typed_data_type(&self) -> Option<Result<TypedDataType, UnknownTypedDataType>> {
         (self.obj.type_ == Dart_CObject_Type::Dart_CObject_kTypedData
             || self.obj.type_ == Dart_CObject_Type::Dart_CObject_kExternalTypedData)
@@ -179,8 +236,10 @@ impl ExternCObject {
 
     /// If the type is known returns a enums with a type specific reference to the data.
     ///
-    /// Copy types are provided as copy instead of as
-    pub fn value_ref(&self, rt: DartRuntime) -> Result<CObjectRef, UnknownCObjectType> {
+    /// Copy types are provided as copy instead of a reference.
+    ///
+    /// All the `as_...` functions are based on this internally.
+    pub fn value_ref(&self, rt: DartRuntime) -> Result<CObjectRef<'_>, UnknownCObjectType> {
         use CObjectRef::*;
         let r#type = self.r#type()?;
         match r#type {
@@ -203,7 +262,12 @@ impl ExternCObject {
                 // - we checked the type
                 Ok(Int64(unsafe { self.obj.value.as_int64 }))
             }
-            CObjectType::Double => Ok(Double(unsafe { self.obj.value.as_double })),
+            CObjectType::Double => {
+                // Safe:
+                // - CObject is sound
+                // - we checked the type
+                Ok(Double(unsafe { self.obj.value.as_double }))
+            }
             CObjectType::String => {
                 // Safe:
                 // - CObject is sound
@@ -223,7 +287,7 @@ impl ExternCObject {
                 Ok(Array(unsafe {
                     let ar = &self.obj.value.as_array;
                     // *mut *mut Dart_CObject
-                    let ptr = ar.values as *const &ExternCObject;
+                    let ptr = ar.values as *const &CObject;
                     slice::from_raw_parts(ptr, ar.length.try_into().unwrap())
                 }))
             }
@@ -267,7 +331,7 @@ impl ExternCObject {
     }
 }
 
-impl Debug for ExternCObject {
+impl Debug for CObject {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         if let Ok(rt) = DartRuntime::instance() {
             f.debug_struct("ExternCObject")
@@ -281,44 +345,82 @@ impl Debug for ExternCObject {
     }
 }
 
+/// A reference to the data in the `CObject`.
+///
+/// In case of copy data a copy is used instead.
 #[derive(Debug)]
 pub enum CObjectRef<'a> {
+    /// The object is null.
     Null,
+    /// The object is a bool.
     Bool(bool),
+    /// The object is a 32bit int.
     Int32(i32),
+    /// The object is a 64bit int.
     Int64(i64),
+    /// The object is a 64bit float.
     Double(f64),
+    /// The object is a string.
     String(&'a str),
-    Array(&'a [&'a ExternCObject]),
+    /// The object is an array of `CObject` references.
+    Array(&'a [&'a CObject]),
+    /// The object is a typed data.
     TypedData {
+        /// `Ok` if the data is of a supported typed data type.
         data: Result<TypedDataRef<'a>, UnknownTypedDataType>,
+        /// Hints if the data was externally typed or not.
         external_typed: bool,
     },
+    /// The object is a send port variant. `Some` if the port is not the `ILLEGAL_PORT`.
     SendPort(Option<SendPort>),
+    /// The object is a capability.
     Capability(Capability),
 }
 
+/// Reference to typed data in a `CObject`.
 #[derive(Debug, Clone, Copy)]
 pub enum TypedDataRef<'a> {
+    /// `u8` data, for rust the same as `Uint8` and `Uint8Clamped`.
+    ///
+    /// In dart this is represented as a fixed sized buffer.
     ByteData(&'a [u8]),
+    /// `i8` data
     Int8(&'a [i8]),
+    /// `u8` data, for rust the same as `ByteData` and `Uint8Clamped`.
     Uint8(&'a [u8]),
+    /// `u8` data, for rust the same as `ByteData` and `Uint8Clamped`.
+    ///
+    /// In dart a list of this type will clamp integers outside of
+    /// the `u8` range when inserting them (instead of using the lower
+    /// most byte).
     Uint8Clamped(&'a [u8]),
+    /// `i16` data
     Int16(&'a [i16]),
+    /// `u16` data
     Uint16(&'a [u16]),
+    /// `i32` data
     Int32(&'a [i32]),
+    /// `u32` data
     Uint32(&'a [u32]),
+    /// `i64` data
     Int64(&'a [i64]),
+    /// `u64` data
     Uint64(&'a [u64]),
+    /// `f32` data
     Float32(&'a [f32]),
+    /// `f64` data
     Float64(&'a [f64]),
+    /// Data representing 4 `i32`s, which i32 maps to which field in dart isn't well defined.
     Int32x4(&'a [[i32; 4]]),
+    /// Data representing 4 `i32`s, which i32 maps to which field in dart isn't well defined.
     Float32x4(&'a [[f32; 4]]),
+    /// Data representing 4 `i32`s, which i32 maps to which field in dart isn't well defined.
     Float64x2(&'a [[f64; 2]]),
 }
 
 impl TypedDataRef<'_> {
     unsafe fn from_raw(data_type: TypedDataType, data: *const u8, len: usize) -> Self {
+        #![allow(unsafe_op_in_unsafe_fn)]
         use self::TypedDataRef::*;
         use std::slice::from_raw_parts;
         match data_type {
@@ -341,26 +443,43 @@ impl TypedDataRef<'_> {
     }
 }
 
+/// Owned typed data you can send to dart (through a `OwnedCObject`).
 #[derive(Debug, Clone)]
 pub enum TypedData {
+    /// A boxed slice of bytes.
     ByteData(Box<[u8]>),
+    /// A vector of `i8`s.
     Int8(Vec<i8>),
+    /// A vector of `u8`s.
     Uint8(Vec<u8>),
+    /// A vector of `u8`s which will be represented through a clamping container in dart.
     Uint8Clamped(Vec<u8>),
+    /// A vector of `i16`s.
     Int16(Vec<i16>),
+    /// A vector of `u16`s.
     Uint16(Vec<u16>),
+    /// A vector of `i32`s.
     Int32(Vec<i32>),
+    /// A vector of `u32`s.
     Uint32(Vec<u32>),
+    /// A vector of `i64`s.
     Int64(Vec<i64>),
+    /// A vector of `u64`s.
     Uint64(Vec<u64>),
+    /// A vector of `f32`s.
     Float32(Vec<f32>),
+    /// A vector of `f64`s.
     Float64(Vec<f64>),
+    /// A vector of 4 `i32`s per element.
     Int32x4(Vec<[i32; 4]>),
+    /// A vector of 4 `f32`s per element.
     Float32x4(Vec<[f32; 4]>),
+    /// A vector of 2 `f64`s per element.
     Float64x2(Vec<[f64; 2]>),
 }
 
 impl TypedData {
+    /// Returns the data type of this typed data.
     pub fn data_type(&self) -> TypedDataType {
         match self {
             TypedData::ByteData(_) => TypedDataType::ByteData,
@@ -469,20 +588,21 @@ impl_custom_external_typed_data_for_vec!(
 );
 
 unsafe extern "C" fn drop_boxed_peer<T>(_data: *mut c_void, peer: *mut c_void) {
-    drop(Box::from_raw(peer as *mut T));
+    drop(unsafe { Box::from_raw(peer as *mut T) });
 }
 
-/// Wrapper around a `Dart_CObject` which is owned by rust.
+/// Wrapper around a [`CObject`] which is owned by rust.
 #[derive(Debug)]
 #[repr(transparent)]
-pub struct OwnedCObject(ExternCObject);
+pub struct OwnedCObject(CObject);
 
 impl OwnedCObject {
     //not meant to be public, just a helper to reduce code duplication
     fn wrap_raw(obj: Dart_CObject) -> Self {
-        Self(ExternCObject { obj })
+        Self(CObject { obj })
     }
 
+    /// Create a [`CObject`] containing null.
     pub fn null() -> Self {
         Self::wrap_raw(Dart_CObject {
             type_: Dart_CObject_Type::Dart_CObject_kNull,
@@ -490,6 +610,7 @@ impl OwnedCObject {
         })
     }
 
+    /// Create a [`CObject`] containing a bool.
     pub fn bool(val: bool) -> Self {
         Self::wrap_raw(Dart_CObject {
             type_: Dart_CObject_Type::Dart_CObject_kBool,
@@ -497,6 +618,7 @@ impl OwnedCObject {
         })
     }
 
+    /// Create a [`CObject`] containing a 32bit signed int.
     pub fn int32(val: i32) -> Self {
         Self::wrap_raw(Dart_CObject {
             type_: Dart_CObject_Type::Dart_CObject_kInt32,
@@ -504,6 +626,7 @@ impl OwnedCObject {
         })
     }
 
+    /// Create a [`CObject`] containing a 64bit signed int.
     pub fn int64(val: i64) -> Self {
         Self::wrap_raw(Dart_CObject {
             type_: Dart_CObject_Type::Dart_CObject_kInt64,
@@ -511,6 +634,7 @@ impl OwnedCObject {
         })
     }
 
+    /// Create a [`CObject`] containing a 64bit float.
     pub fn double(val: f64) -> Self {
         Self::wrap_raw(Dart_CObject {
             type_: Dart_CObject_Type::Dart_CObject_kDouble,
@@ -518,6 +642,13 @@ impl OwnedCObject {
         })
     }
 
+    /// Create a [`CObject`] containing a string.
+    ///
+    /// This clones the string.
+    ///
+    /// # Errors
+    ///
+    /// If the string contains a `0` bytes an error is returned.
     pub fn string(val: impl AsRef<str>) -> Result<Self, NulError> {
         let val = CString::new(val.as_ref())?;
         Ok(Self::wrap_raw(Dart_CObject {
@@ -528,7 +659,9 @@ impl OwnedCObject {
         }))
     }
 
-    /// Like string, but cut's of when encountering a `'\0'`.
+    /// Create a [`CObject`] containing a string.
+    ///
+    /// Like [`CObject::string()`], but cut's of when encountering a `'\0'`.
     pub fn string_lossy(val: impl AsRef<str>) -> Self {
         let bytes = val.as_ref().as_bytes();
         let end_idx = bytes.iter().position(|b| *b == 0).unwrap_or(bytes.len());
@@ -542,7 +675,7 @@ impl OwnedCObject {
         })
     }
 
-    /// Create a CObject representing a send port.
+    /// Create a [`CObject`] containing a [`SendPort`].
     pub fn send_port(port: SendPort) -> Self {
         let (id, origin_id) = port.as_raw();
         Self::wrap_raw(Dart_CObject {
@@ -553,6 +686,7 @@ impl OwnedCObject {
         })
     }
 
+    /// Create a [`CObject`] containing a [`Capability`].
     pub fn capability(id: i64) -> Self {
         Self::wrap_raw(Dart_CObject {
             type_: Dart_CObject_Type::Dart_CObject_kCapability,
@@ -562,6 +696,7 @@ impl OwnedCObject {
         })
     }
 
+    /// Create a [`CObject`] containing a array of boxed [`OwnedCObject`]'s.
     pub fn array(array: Vec<Box<OwnedCObject>>) -> Self {
         let bs = array.into_boxed_slice();
         let len = bs.len().try_into().unwrap();
@@ -578,12 +713,19 @@ impl OwnedCObject {
         })
     }
 
+    /// Create a [`CObject`] containing typed data.
+    ///
+    /// This will for now internally delegates to creating external
+    /// typed data. This is an implementation details **which might
+    /// change**.
+    ///
+    /// Use [`CObject::external_typed_data()`] instead if you want
+    /// to rely on it's performance characteristics.
     pub fn typed_data(data: TypedData) -> Self {
-        // TODO If we can have a lifetime on cobjects this can
-        //      make sense to implement by accepting a TypedDataRef
         Self::external_typed_data(data)
     }
 
+    /// Create a [`CObject`] containing a .
     pub fn external_typed_data<CET>(data: CET) -> Self
     where
         CET: CustomExternalTyped,
@@ -599,7 +741,7 @@ impl OwnedCObject {
 }
 
 impl Deref for OwnedCObject {
-    type Target = ExternCObject;
+    type Target = CObject;
 
     fn deref(&self) -> &Self::Target {
         &self.0

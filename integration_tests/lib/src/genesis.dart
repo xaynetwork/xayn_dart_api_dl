@@ -46,4 +46,5 @@ class IntegrationTestsFfi {
       _setup_cmd_handlerPtr.asFunction<int Function(int)>();
 }
 
+/// Alias for the void pointer passed to [`Dart_InitializeApiDL`].
 typedef InitData = ffi.Pointer<ffi.Void>;

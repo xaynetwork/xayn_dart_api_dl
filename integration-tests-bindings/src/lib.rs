@@ -11,7 +11,7 @@ use std::{
 use once_cell::sync::Lazy;
 
 use dart_api_dl::{
-    cobject::{CObjectRef, ExternCObject, OwnedCObject},
+    cobject::{CObjectRef, CObject, OwnedCObject},
     initialize_dart_api_dl,
     port::{DartPortId, NativeMessageHandler, NativeRecvPort, PortPostMessageFailed, SendPort},
     DartRuntime, InitData, InitializationFailed,
@@ -89,7 +89,7 @@ impl CmdHandler {
     fn handle_cmd(
         rt: DartRuntime,
         respond_to: SendPort,
-        slice: &[&ExternCObject],
+        slice: &[&CObject],
     ) -> Result<(), String> {
         let cmd = slice
             .get(0)
@@ -136,7 +136,7 @@ impl NativeMessageHandler for CmdHandler {
     const CONCURRENT_HANDLING: bool = true;
     const NAME: &'static str = "adder";
 
-    fn handle_message(rt: DartRuntime, _ourself: &NativeRecvPort, msg: &mut ExternCObject) {
+    fn handle_message(rt: DartRuntime, _ourself: &NativeRecvPort, msg: &mut CObject) {
         log(format!("handle-msg-0: {:?}", msg));
         if let Ok(CObjectRef::Array(slice)) = msg.value_ref(rt) {
             if let Some(respond_to) = slice.get(0).and_then(|o| o.as_send_port(rt)).flatten() {
@@ -154,7 +154,7 @@ impl NativeMessageHandler for CmdHandler {
     fn handle_panic(
         rt: DartRuntime,
         _ourself: &NativeRecvPort,
-        data: &mut ExternCObject,
+        data: &mut CObject,
         panic: &mut OwnedCObject,
     ) {
         let value_ref = match data.value_ref(rt) {

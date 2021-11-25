@@ -10,7 +10,7 @@ macro_rules! impl_from_to_pseudo_enums {
     ) => (
         $(#[$attr])*
         pub enum $enum_name {
-            $($enum_variant,)*
+            $(#[allow(missing_docs)] $enum_variant,)*
         }
 
         impl TryFrom<$native_name> for $enum_name {
@@ -34,7 +34,7 @@ macro_rules! impl_from_to_pseudo_enums {
 }
 
 impl_from_to_pseudo_enums! {
-    /// TODO
+    /// Supported types of [`CObject`]s.
     #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
     pub enum CObjectType from Dart_CObject_Type {
         type Error = UnknownCObjectType;
@@ -52,12 +52,19 @@ impl_from_to_pseudo_enums! {
     }
 }
 
+/// The `CObjectType` isn't known/supported by this library.
+///
+/// There are a few cases where a type is not supported:
+///
+/// - It was added in a newer Dart VM version.
+/// - It's the `Dart_CObject_kUnsupported` type.
+/// - It's the `Dart_CObject_kNumberOfTypes` type.
 #[derive(Debug, Error, PartialEq)]
 #[error("UnknownCObjectType: {:?}", _0)]
 pub struct UnknownCObjectType(pub Dart_CObject_Type);
 
 impl_from_to_pseudo_enums! {
-    /// TODO
+    /// The type of typed data in a [`CObject`].
     #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
     pub enum TypedDataType from Dart_TypedData_Type {
         type Error = UnknownTypedDataType;
@@ -79,6 +86,12 @@ impl_from_to_pseudo_enums! {
     }
 }
 
+/// The `CObjectType` isn't known/supported by this library.
+///
+/// There are a few cases where a type is not supported:
+///
+/// - It was added in a newer Dart VM version.
+/// - It's the `Dart_TypedData_kInvalid` type.
 #[derive(Debug, Error)]
 #[error("UnknownTypedDataType: {:?}", _0)]
 pub struct UnknownTypedDataType(pub Dart_TypedData_Type);

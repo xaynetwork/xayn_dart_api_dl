@@ -1,6 +1,6 @@
 use std::panic::{AssertUnwindSafe, UnwindSafe};
 
-use crate::cobject::{ExternCObject, OwnedCObject};
+use crate::cobject::{CObject, OwnedCObject};
 
 /// If given function panics call the panic handler.
 ///
@@ -9,11 +9,10 @@ use crate::cobject::{ExternCObject, OwnedCObject};
 ///
 /// If the panic handler panics it's caught and ignored.
 ///
-//FIXME find a better name
-pub fn catch_unwind_panic_as_cobject<F, P>(obj: &mut ExternCObject, func: F, on_panic: P)
+pub(crate) fn catch_unwind_panic_as_cobject<F, P>(obj: &mut CObject, func: F, on_panic: P)
 where
-    F: UnwindSafe + FnOnce(&mut ExternCObject),
-    P: UnwindSafe + FnOnce(&mut ExternCObject, &mut OwnedCObject),
+    F: UnwindSafe + FnOnce(&mut CObject),
+    P: UnwindSafe + FnOnce(&mut CObject, &mut OwnedCObject),
 {
     let a_obj = AssertUnwindSafe(&mut *obj);
     let err = match std::panic::catch_unwind(|| func(fix(a_obj))) {
@@ -55,12 +54,12 @@ mod tests {
         let mut null = OwnedCObject::null();
 
         let mut res = None;
-        let mres = AssertUnwindSafe(&mut res);
+        let a_res = AssertUnwindSafe(&mut res);
         catch_unwind_panic_as_cobject(
             &mut null,
             |_| panic!("hy there"),
             move |_, obj| {
-                *fix(mres) = obj.as_string(rt).map(ToOwned::to_owned);
+                *fix(a_res) = obj.as_string(rt).map(ToOwned::to_owned);
             },
         );
         assert_eq!(res, Some("hy there".to_owned()));
