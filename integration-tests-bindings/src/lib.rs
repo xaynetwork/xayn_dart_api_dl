@@ -10,7 +10,7 @@ use std::{
 
 use once_cell::sync::Lazy;
 
-use dart_api_dl::{DartRuntime, InitData, InitializationFailed, cobject::{CObjectRef, CObject, OwnedCObject}, initialize_dart_api_dl, port::{DartPortId, NativeMessageHandler, NativeRecvPort, PortCreationFailed, PortPostMessageFailed, SendPort}};
+use dart_api_dl::{DartRuntime, InitData, InitializationFailed, cobject::{CObjectRef, CObject, OwnedCObject}, initialize_dart_api_dl, ports::{DartPortId, NativeMessageHandler, NativeRecvPort, PortCreationFailed, PostingMessageFailed, SendPort}};
 use thiserror::Error;
 
 static LOGGER: Lazy<Mutex<File>> = Lazy::new(|| Mutex::new(File::create("/tmp/yolo.txt").unwrap()));
@@ -80,7 +80,7 @@ static ADDER_THREAD: Lazy<Mutex<Sender<(i64, i64, SendPort)>>> = Lazy::new(|| {
 enum SetupError {
     InitFailed(#[from] InitializationFailed),
     PortCreatingFailed(#[from] PortCreationFailed),
-    PortPostMessageFailed(#[from] PortPostMessageFailed),
+    PortPostMessageFailed(#[from] PostingMessageFailed),
     MalformedMessage
 }
 

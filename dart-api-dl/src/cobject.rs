@@ -28,7 +28,7 @@ use dart_api_dl_sys::{
     _Dart_CObject__bindgen_ty_1__bindgen_ty_3, _Dart_CObject__bindgen_ty_1__bindgen_ty_5,
 };
 
-use crate::{port::SendPort, DartRuntime};
+use crate::{ports::SendPort, DartRuntime};
 
 mod type_enums;
 

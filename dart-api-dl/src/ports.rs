@@ -271,13 +271,13 @@ impl SendPort {
     /// # Errors
     ///
     /// If posting the message failed.
-    pub fn post_integer(&self, message: i64) -> Result<(), PortPostMessageFailed> {
+    pub fn post_integer(&self, message: i64) -> Result<(), PostingMessageFailed> {
         // SAFE: As long as trying to send to a closed port is safe, which should be
         //       safe for darts security model to work.
         if unsafe { fpslot!(@call Dart_PostInteger_DL(self.port, message))? } {
             Ok(())
         } else {
-            Err(PortPostMessageFailed)
+            Err(PostingMessageFailed)
         }
     }
 
@@ -288,7 +288,7 @@ impl SendPort {
     /// # Errors
     ///
     /// If posting the message failed.
-    pub fn post_cobject(&self, mut cobject: OwnedCObject) -> Result<(), PortPostMessageFailed> {
+    pub fn post_cobject(&self, mut cobject: OwnedCObject) -> Result<(), PostingMessageFailed> {
         self.post_cobject_mut(&mut cobject)
     }
 
@@ -310,7 +310,7 @@ impl SendPort {
     ///
     /// If posting the message failed this will error.
     ///
-    pub fn post_cobject_mut(&self, cobject: &mut CObject) -> Result<(), PortPostMessageFailed> {
+    pub fn post_cobject_mut(&self, cobject: &mut CObject) -> Result<(), PostingMessageFailed> {
         let need_nulling = cobject.r#type() == Ok(CObjectType::ExternalTypedData);
         // SAFE: As long as `OwnedCObject` was properly constructed and is kept in a sound
         //       state (which is a requirement of it's unsafe interfaces).
@@ -320,7 +320,7 @@ impl SendPort {
             }
             Ok(())
         } else {
-            Err(PortPostMessageFailed)
+            Err(PostingMessageFailed)
         }
     }
 
@@ -364,9 +364,9 @@ impl Deref for NativeRecvPort {
 /// Posting a message on a port failed.
 #[derive(Debug, Error)]
 #[error("Posting message failed.")]
-pub struct PortPostMessageFailed;
+pub struct PostingMessageFailed;
 
-impl From<UninitializedFunctionSlot> for PortPostMessageFailed {
+impl From<UninitializedFunctionSlot> for PostingMessageFailed {
     fn from(_: UninitializedFunctionSlot) -> Self {
         Self
     }

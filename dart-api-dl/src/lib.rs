@@ -18,7 +18,6 @@
 #![allow(
     clippy::must_use_candidate,
     clippy::items_after_statements,
-    clippy::module_name_repetitions
 )]
 // We use the zero sized `DartRuntime` type as a guard
 // so most of it's functions which have `self` don't use self.
@@ -27,7 +26,7 @@
 pub mod cobject;
 mod lifecycle;
 mod panic;
-pub mod port;
+pub mod ports;
 
 pub use lifecycle::*;
 
