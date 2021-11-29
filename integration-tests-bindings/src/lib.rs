@@ -10,7 +10,15 @@ use std::{
 
 use once_cell::sync::Lazy;
 
-use dart_api_dl::{DartRuntime, InitData, InitializationFailed, cobject::{CObjectRef, CObject, OwnedCObject}, initialize_dart_api_dl, ports::{DartPortId, NativeMessageHandler, NativeRecvPort, PortCreationFailed, PostingMessageFailed, SendPort}};
+use dart_api_dl::{
+    cobject::{CObject, CObjectRef, OwnedCObject},
+    initialize_dart_api_dl,
+    ports::{
+        DartPortId, NativeMessageHandler, NativeRecvPort, PortCreationFailed, PostingMessageFailed,
+        SendPort,
+    },
+    DartRuntime, InitData, InitializationFailed,
+};
 use thiserror::Error;
 
 static LOGGER: Lazy<Mutex<File>> = Lazy::new(|| Mutex::new(File::create("/tmp/yolo.txt").unwrap()));
@@ -50,9 +58,7 @@ fn setup_cmd_handler_inner(respond_to: DartPortId) -> Result<(), SetupError> {
         .send_port_from_raw(respond_to)
         .ok_or(SetupError::MalformedMessage)?;
     log("setup-2");
-    let adder_send_port = rt
-        .native_recv_port::<CmdHandler>()?
-        .leak();
+    let adder_send_port = rt.native_recv_port::<CmdHandler>()?.leak();
     log("setup-3");
     let mut cobj = OwnedCObject::send_port(adder_send_port);
     log("setup-4");
@@ -81,17 +87,13 @@ enum SetupError {
     InitFailed(#[from] InitializationFailed),
     PortCreatingFailed(#[from] PortCreationFailed),
     PortPostMessageFailed(#[from] PostingMessageFailed),
-    MalformedMessage
+    MalformedMessage,
 }
 
 struct CmdHandler;
 
 impl CmdHandler {
-    fn handle_cmd(
-        rt: DartRuntime,
-        respond_to: SendPort,
-        slice: &[&CObject],
-    ) -> Result<(), String> {
+    fn handle_cmd(rt: DartRuntime, respond_to: SendPort, slice: &[&CObject]) -> Result<(), String> {
         let cmd = slice
             .get(0)
             .ok_or("no cmd argument")?

@@ -32,7 +32,6 @@ where
     if std::panic::catch_unwind(AssertUnwindSafe(|| on_panic(fix(a_obj), &mut err))).is_err() {
         //TODO log
     }
-
 }
 
 // Rust2021 is too clever
