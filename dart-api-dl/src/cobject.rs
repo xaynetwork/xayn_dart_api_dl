@@ -438,9 +438,13 @@ pub enum TypedDataRef<'a> {
 
 impl TypedDataRef<'_> {
     unsafe fn from_raw(data_type: TypedDataType, data: *const u8, len: usize) -> Self {
-        #![allow(unsafe_op_in_unsafe_fn, clippy::enum_glob_use, clippy::cast_ptr_alignment)]
-        use TypedDataRef::*;
+        #![allow(
+            unsafe_op_in_unsafe_fn,
+            clippy::enum_glob_use,
+            clippy::cast_ptr_alignment
+        )]
         use std::slice::from_raw_parts;
+        use TypedDataRef::*;
         match data_type {
             TypedDataType::ByteData => ByteData(from_raw_parts(data, len)),
             TypedDataType::Int8 => Int8(from_raw_parts(data.cast::<i8>(), len)),
@@ -705,7 +709,7 @@ impl OwnedCObject {
     }
 
     /// Create a [`CObject`] containing a [`Capability`].
-    pub fn capability(id: i64) -> Self {
+    pub fn capability(id: Capability) -> Self {
         Self::wrap_raw(Dart_CObject {
             type_: Dart_CObject_Type::Dart_CObject_kCapability,
             value: _Dart_CObject__bindgen_ty_1 {
@@ -841,4 +845,31 @@ pub unsafe trait CustomExternalTyped {
     /// leak the resources of this instance. Through `OwnedCObject`
     /// will make sure that this doesn't happen.
     fn into_external_typed_data(self) -> ExternalTypedData;
+}
+
+macro_rules! impl_from {
+    ($($t:ty => $c:ident;)*) => ($(
+        impl From<$t> for OwnedCObject {
+            fn from(v: $t) -> Self {
+                OwnedCObject::$c(v)
+            }
+        }
+    )*);
+}
+
+impl_from!(
+    bool => bool;
+    i32 => int32;
+    i64 => int64;
+    SendPort => send_port;
+    Vec<Box<OwnedCObject>> => array;
+    TypedData => typed_data;
+);
+
+impl TryFrom<String> for OwnedCObject {
+    type Error = NulError;
+
+    fn try_from(value: String) -> Result<Self, Self::Error> {
+        OwnedCObject::string(value)
+    }
 }
