@@ -14,17 +14,26 @@ fn main() {
     let config_file = manifest_dir.join("cbindgen.toml");
 
     println!("cargo:rerun-if-changed=src/lib.rs");
-    println!("cargo:rerun-if-changed={}", config_file.display());
+    println!("cargo:rerun-if-env-changed=DISABLE_AUTO_DART_FFIGEN");
     println!("cargo:rerun-if-changed={}", header_out_file.display());
+    println!("cargo:rerun-if-changed={}", config_file.display());
 
     let config = Config::from_file(config_file).expect("Failed to read config.");
     generate_with_config(manifest_dir, config)
         .expect("Failed to generate bindings.")
         .write_to_file(header_out_file);
 
-    set_current_dir(dart_dir).unwrap();
-    run_cmd(Command::new("dart").args(&["pub", "get"]));
-    run_cmd(Command::new("dart").args(&["pub", "run", "ffigen", "--config", "ffigen.yaml"]));
+    if is_auto_dart_ffigen_enabled() {
+        set_current_dir(dart_dir).unwrap();
+        run_cmd(Command::new("dart").args(&["pub", "get"]));
+        run_cmd(Command::new("dart").args(&["pub", "run", "ffigen", "--config", "ffigen.yaml"]));
+    }
+}
+
+fn is_auto_dart_ffigen_enabled() -> bool {
+    env::var("DISABLE_AUTO_DART_FFIGEN")
+        .ok()
+        .map_or(true, |v| v.trim() != "1")
 }
 
 fn run_cmd(cmd: &mut Command) {
