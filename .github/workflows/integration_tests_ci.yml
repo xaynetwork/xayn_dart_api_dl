@@ -82,6 +82,9 @@ jobs:
         with:
           sdk: ${{ env.DART_VERSION }}
 
+      - name: Install clang for ffigen
+        run: sudo apt-get install libclang-10-dev
+
       - name: Build Rust
         working-directory: ${{ env.RUST_WORKSPACE }}
         run: |
