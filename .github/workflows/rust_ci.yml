@@ -16,7 +16,7 @@ permissions:
 
 env:
   RUST_NIGHTLY: nightly-2021-09-09
-  RUST_WORKSPACE: ${{ github.workspace }}/discovery_engine_core
+  RUST_WORKSPACE: ${{ github.workspace }}/
   RUSTFLAGS: "-D warnings"
 
 jobs:
