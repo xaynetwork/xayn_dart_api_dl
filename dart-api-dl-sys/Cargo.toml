@@ -3,3 +3,14 @@ name = "xayn-dart-api-dl-sys"
 version = "0.3.0+2.0.0"
 edition = "2018"
 license = "Apache-2.0"
+links = "dart_api_dl"
+
+[dependencies]
+
+[dev-dependencies]
+static_assertions = "1.1.0"
+
+[build-dependencies]
+semver = "1.0.4"
+bindgen = "0.59.1"
+cc = "1.0.71"

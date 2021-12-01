@@ -1,8 +1,15 @@
 [workspace]
 members = [
+    # "dart-api-dl",
+    "dart-api-dl-sys",
     "update-lib",
+    # "integration-tests-bindings"
 ]
 resolver = "2"
 
 [workspace.metadata]
-msrv = "1.55.0"
+# minimum supported rust version
+msrv = "1.51.0"
+
+[patch.crates-io]
+dart-api-dl-sys = { path = "./dart-api-dl-sys" }
