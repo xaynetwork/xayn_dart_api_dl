@@ -5,12 +5,6 @@ import './genesis.dart' show IntegrationTestsFfi;
 
 /// Opens the platform dependent Rust library.
 DynamicLibrary _open() {
-  if (Platform.isAndroid) {
-    return DynamicLibrary.open('libintegration_tests_bindings.so');
-  }
-  if (Platform.isIOS) {
-    return DynamicLibrary.process();
-  }
   if (Platform.isLinux) {
     return DynamicLibrary.open(
         '../target/debug/libintegration_tests_bindings.so');
