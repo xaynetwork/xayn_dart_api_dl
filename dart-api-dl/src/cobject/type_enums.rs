@@ -13,7 +13,7 @@ macro_rules! impl_from_to_pseudo_enums {
             $(#[allow(missing_docs)] $enum_variant,)*
         }
 
-        impl TryFrom<$native_name> for $enum_name {
+        impl std::convert::TryFrom<$native_name> for $enum_name {
             type Error = $error;
             fn try_from(v: $native_name) -> Result<Self, Self::Error> {
                 Ok(match v {

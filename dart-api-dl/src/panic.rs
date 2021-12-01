@@ -8,7 +8,6 @@ use crate::cobject::{CObject, OwnedCObject};
 /// passed to the panic handler.
 ///
 /// If the panic handler panics it's caught and ignored.
-///
 pub(crate) fn catch_unwind_panic_as_cobject<F, P>(obj: &mut CObject, func: F, on_panic: P)
 where
     F: UnwindSafe + FnOnce(&mut CObject),

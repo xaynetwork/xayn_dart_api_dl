@@ -14,18 +14,21 @@
 //! - [`OwnedCObject`] a instance we created and as
 //!   such we need to handle resource cleanup, like
 //!   freeing allocated string.
-//!
 use std::{
     ffi::{c_void, CStr, CString, NulError},
     fmt::{self, Debug},
     ops::{Deref, DerefMut},
-    slice,
+    slice, convert::{TryFrom, TryInto},
 };
 
 use dart_api_dl_sys::{
-    Dart_CObject, Dart_CObject_Type, _Dart_CObject__bindgen_ty_1,
-    _Dart_CObject__bindgen_ty_1__bindgen_ty_1, _Dart_CObject__bindgen_ty_1__bindgen_ty_2,
-    _Dart_CObject__bindgen_ty_1__bindgen_ty_3, _Dart_CObject__bindgen_ty_1__bindgen_ty_5,
+    Dart_CObject,
+    Dart_CObject_Type,
+    _Dart_CObject__bindgen_ty_1,
+    _Dart_CObject__bindgen_ty_1__bindgen_ty_1,
+    _Dart_CObject__bindgen_ty_1__bindgen_ty_2,
+    _Dart_CObject__bindgen_ty_1__bindgen_ty_3,
+    _Dart_CObject__bindgen_ty_1__bindgen_ty_5,
 };
 
 use crate::{ports::SendPort, DartRuntime};
@@ -44,7 +47,6 @@ pub type ExternalTypedData = _Dart_CObject__bindgen_ty_1__bindgen_ty_5;
 /// Wrapper around a `Dart_CObject` which can be read, but which we do not own.
 ///
 /// As such we can't deallocate anything in it and should in general not modify it.
-///
 // Transparent repr is very important as we will "unsafe" cast between the dart type
 // and our new-type which we use to attach methods and safety to the dart type.
 #[repr(transparent)]
@@ -719,7 +721,6 @@ impl OwnedCObject {
     }
 
     /// Create a [`CObject`] containing a array of boxed [`OwnedCObject`]'s.
-    ///
     #[allow(clippy::vec_box)]
     pub fn array(array: Vec<Box<OwnedCObject>>) -> Self {
         let bs = array.into_boxed_slice();
@@ -837,7 +838,6 @@ impl Default for OwnedCObject {
 ///
 /// The returned external typed data must be sound to
 /// use in a [`CObject`].
-///
 pub unsafe trait CustomExternalTyped {
     /// This should only be called by the `OwnedCObject` type.
     ///

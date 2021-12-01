@@ -36,7 +36,6 @@ pub type InitData = *mut c_void;
 /// Luckily even after the Dart VM stops all of the functionality exposed here
 /// should be rust-safe to call (but might abort the process), through there
 /// are no guarantees.
-///
 //FIXME: we could have a Dart VM shutdown guard by returning a external typed data
 // "with magic" destructor the user has to place in a static variable. But besides
 // it being un-ergonomic it's also very confusing/error prone with the current external

@@ -14,10 +14,16 @@ use dart_api_dl::{
     cobject::{CObject, CObjectRef, OwnedCObject},
     initialize_dart_api_dl,
     ports::{
-        DartPortId, NativeMessageHandler, NativeRecvPort, PortCreationFailed, PostingMessageFailed,
+        DartPortId,
+        NativeMessageHandler,
+        NativeRecvPort,
+        PortCreationFailed,
+        PostingMessageFailed,
         SendPort,
     },
-    DartRuntime, InitData, InitializationFailed,
+    DartRuntime,
+    InitData,
+    InitializationFailed,
 };
 use thiserror::Error;
 
