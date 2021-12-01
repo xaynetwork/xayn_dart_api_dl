@@ -12,3 +12,4 @@ msrv = "1.55.0"
 
 [patch.crates-io]
 xayn-dart-api-dl-sys = { path = "./dart-api-dl-sys" }
+xayn-dart-api-dl = { path = "./dart-api-dl" }

@@ -4,6 +4,7 @@ on:
   push:
     paths:
       - '.github/workflows/rust_ci.yml'
+      - 'dart-api-dl/**'
       - 'dart-api-dl-sys/**'
       - 'dart-src'
 

@@ -87,7 +87,12 @@ jobs:
         run: |
           cargo build -p integration-tests-bindings
 
-      - name: Install dependencies
+      - name: Unit test of integration test crate
+        working-directory: ${{ env.RUST_WORKSPACE }}
+        run: |
+          cargo build -p integration-tests-bindings
+
+      - name: Install Dart dependencies
         working-directory: ${{ env.DART_WORKSPACE }}
         run: dart pub get
 
