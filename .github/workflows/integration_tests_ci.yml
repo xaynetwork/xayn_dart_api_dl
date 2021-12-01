@@ -77,15 +77,15 @@ jobs:
 
       - uses: Swatinem/rust-cache@d12701459954fec471b2d34cdf7ea3374b026383 # v1
 
-      - name: Build Rust
-        working-directory: ${{ env.RUST_WORKSPACE }}
-        run: |
-          cargo build -p integration-tests-bindings
-
       - name: Install dart
         uses: dart-lang/setup-dart@6a218f2413a3e78e9087f638a238f6b40893203d # v1.3
         with:
           sdk: ${{ env.DART_VERSION }}
+
+      - name: Build Rust
+        working-directory: ${{ env.RUST_WORKSPACE }}
+        run: |
+          cargo build -p integration-tests-bindings
 
       - name: Install dependencies
         working-directory: ${{ env.DART_WORKSPACE }}
