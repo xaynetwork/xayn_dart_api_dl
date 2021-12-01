@@ -1,9 +1,9 @@
 [workspace]
 members = [
-    # "dart-api-dl",
+    "dart-api-dl",
     "dart-api-dl-sys",
     "update-lib",
-    # "integration-tests-bindings"
+    "integration-tests-bindings"
 ]
 resolver = "2"
 
