@@ -15,10 +15,11 @@
 //!   such we need to handle resource cleanup, like
 //!   freeing allocated string.
 use std::{
+    convert::{TryFrom, TryInto},
     ffi::{c_void, CStr, CString, NulError},
     fmt::{self, Debug},
     ops::{Deref, DerefMut},
-    slice, convert::{TryFrom, TryInto},
+    slice,
 };
 
 use dart_api_dl_sys::{
