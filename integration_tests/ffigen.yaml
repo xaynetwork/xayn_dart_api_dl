@@ -1,6 +1,6 @@
 name: 'IntegrationTestsFfi'
 description: 'Bindings for the integration tests'
-output: 'lib/src/genesis.dart'
+output: 'lib/src/genesis.ffigen.dart'
 headers:
   entry-points:
     - 'include/IntegrationTestsFfi.h'

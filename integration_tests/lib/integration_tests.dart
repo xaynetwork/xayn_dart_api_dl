@@ -5,7 +5,7 @@ library integration_tests;
 
 import 'dart:ffi' show NativeApi, NativePort;
 import 'dart:isolate' show ReceivePort, SendPort;
-import 'src/load_lib.dart' show ffi;
+import 'package:integration_tests/src/load_lib.dart' show ffi;
 
 Future<void> initialize() async {
   if (ffi.initialize(NativeApi.initializeApiDLData) != 0) {
@@ -31,7 +31,7 @@ class Commander {
       if (ffi.setup_cmd_handler(port.sendPort.nativePort) == 0) {
         throw Exception('failed to setup');
       }
-      dynamic chan = await port.first;
+      final dynamic chan = await port.first;
       final newInstance = Commander._(chan as SendPort);
       Commander._instance = newInstance;
       return newInstance;
@@ -49,6 +49,6 @@ class Commander {
     final allParams = <Object?>[port.sendPort, name];
     allParams.addAll(params);
     self._chan.send(allParams);
-    return await port.first;
+    return port.first;
   }
 }
