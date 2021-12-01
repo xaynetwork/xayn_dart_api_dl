@@ -58,7 +58,6 @@
 //!
 //! The version of the Dart VM's DL API **can not be look up, the functionality
 //! is missing.** Currently we are at DL API version 2.0 so it doesn't matter.
-//!
 // FIXME: But Dart 2.15 will bump it to 2.1 (hopefully) in a (potentially) non-detectable way.
 //        If it's not fixed by dart we could somewhat work around it, but I hope we don't need to.
 //        Also versions are accessible from dart, so higher level bindings
