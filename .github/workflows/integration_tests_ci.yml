@@ -40,31 +40,9 @@ jobs:
         working-directory: ${{ env.DART_WORKSPACE }}
         run: dart format --output=none --set-exit-if-changed .
 
-  dart-analyze:
-    name: dart-analyze
-    needs: dart-format
-    runs-on: ubuntu-20.04
-    timeout-minutes: 15
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@ec3a7ce113134d7a93b817d10a8272cb61118579 # v2.4.0
-
-      - name: Install dart
-        uses: dart-lang/setup-dart@6a218f2413a3e78e9087f638a238f6b40893203d # v1.3
-        with:
-          sdk: ${{ env.DART_VERSION }}
-
-      - name: Install dependencies
-        working-directory: ${{ env.DART_WORKSPACE }}
-        run: dart pub get
-
-      - name: Analyze code
-        working-directory: ${{ env.DART_WORKSPACE }}
-        run: dart analyze --fatal-infos
-
   integration-tests:
     name: integration-tests
-    needs: dart-analyze
+    needs: dart-format
     runs-on: ubuntu-20.04
     timeout-minutes: 15
     steps:
@@ -82,6 +60,10 @@ jobs:
         with:
           sdk: ${{ env.DART_VERSION }}
 
+      - name: Install Dart dependencies
+        working-directory: ${{ env.DART_WORKSPACE }}
+        run: dart pub get
+
       - name: Install clang for ffigen
         run: sudo apt-get install libclang-10-dev
 
@@ -93,11 +75,14 @@ jobs:
       - name: Unit test of integration test crate
         working-directory: ${{ env.RUST_WORKSPACE }}
         run: |
-          cargo build -p integration-tests-bindings
+          cargo test -p integration-tests-bindings
 
-      - name: Install Dart dependencies
+      - name: Analyze code
         working-directory: ${{ env.DART_WORKSPACE }}
-        run: dart pub get
+        # We want to analyze code referring to `.ffigen.dart` files
+        # which we only generate through rust because it's based
+        # on macro generated code from rust.
+        run: dart analyze --fatal-infos
 
       - name: Run tests
         working-directory: ${{ env.DART_WORKSPACE }}
