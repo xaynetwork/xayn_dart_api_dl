@@ -1,0 +1,8 @@
+[workspace]
+members = [
+    "update-lib",
+]
+resolver = "2"
+
+[workspace.metadata]
+msrv = "1.55.0"
