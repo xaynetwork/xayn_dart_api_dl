@@ -24,6 +24,8 @@ fn main() {
         .write_to_file(header_out_file);
 
     if is_auto_dart_ffigen_enabled() {
+        let ffigen_out_file = dart_dir.join("lib/src/genesis.ffigen.dart");
+        println!("cargo:rerun-if-changed={}", ffigen_out_file.display());
         set_current_dir(dart_dir).unwrap();
         run_cmd(Command::new("dart").args(&["pub", "get"]));
         run_cmd(Command::new("dart").args(&["pub", "run", "ffigen", "--config", "ffigen.yaml"]));
