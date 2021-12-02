@@ -7,8 +7,22 @@ import 'dart:ffi' show NativeApi, NativePort;
 import 'dart:isolate' show ReceivePort, SendPort;
 import 'package:integration_tests/src/load_lib.dart' show ffi;
 
+/// ffi bool as dart bool
+///
+/// ffigen might depending on factors outside of it's version
+/// sometimes generate a bool returning function an sometimes an
+/// integer returning function.
+bool ffiBool(Object val) {
+  if (val is int) {
+    assert(val == 1 || val == 0);
+    return val == 1;
+  }
+  assert(val is bool);
+  return val as bool;
+}
+
 Future<void> initialize() async {
-  if (ffi.initialize(NativeApi.initializeApiDLData) != 0) {
+  if (ffiBool(ffi.initialize(NativeApi.initializeApiDLData))) {
     await Commander._getInstance();
     return;
   }
@@ -28,7 +42,7 @@ class Commander {
       return instance;
     } else {
       final port = ReceivePort();
-      if (ffi.setup_cmd_handler(port.sendPort.nativePort) == 0) {
+      if (!ffiBool(ffi.setup_cmd_handler(port.sendPort.nativePort))) {
         throw Exception('failed to setup');
       }
       final dynamic chan = await port.first;
