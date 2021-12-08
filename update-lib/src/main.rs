@@ -1,9 +1,7 @@
 //! A small rust script for updating this library.
 //!
-//! It could be a single file if I would require
-//! e.g. `rust-script` but I don't want to require
-//! such a dependency when there is little benefit
-//! in it.
+//! Usage: `cargo run -p update-lib -- <dart-version>`
+//!
 
 use std::{
     env::{self, set_current_dir},
@@ -16,27 +14,26 @@ use std::{
 use semver::{BuildMetadata, Version};
 use toml_edit::{Document, Formatted, Item, Value};
 
-fn dart_branch() -> String {
+fn dart_version() -> String {
     let mut args = env::args();
     args.next().expect("bin name missing");
-    let arg1 = args.next();
-    if arg1.as_ref().map(|v| v.starts_with('-')).unwrap_or(true) || args.next().is_some() {
-        eprintln!("USAGE: update-lib <dart-branch>");
-        exit(1);
-    }
-
-    arg1.unwrap()
+    args.next()
+        .filter(|arg1| !arg1.starts_with('-') && args.next().is_none())
+        .unwrap_or_else(|| {
+            eprintln!("USAGE: update-lib <dart-version>");
+            exit(1)
+        })
 }
 
 fn main() {
-    let dart_branch = &dart_branch();
+    let dart_version = &dart_version();
     let workspace_path = Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap();
     set_current_dir(workspace_path).unwrap();
 
     let dart_src = &workspace_path.join("dart-src");
 
     remove_dir_all(dart_src);
-    download_dart_src(dart_branch, dart_src);
+    download_dart_src(dart_version, dart_src);
 
     if !has_dart_source_changed(dart_src) {
         eprintln!("Dart source didn't change.");
@@ -136,8 +133,8 @@ fn extract_dl_api_version(dart_src: &Path) -> (u64, u64) {
 fn has_dart_source_changed(dart_src: &Path) -> bool {
     let out = command_output(
         Command::new("git")
-            .args(&["status", "-s", "--"])
-            .arg(dart_src.to_str().unwrap()),
+            .args(["status", "-s", "--"])
+            .arg(dart_src),
     );
 
     out.lines().filter(|l| !l.trim().is_empty()).count() > 0
@@ -167,7 +164,7 @@ fn download_dart_src(dart_version: &str, out_dir: &Path) {
         .args(&["clone", "--depth", "1", "--branch"])
         .arg(dart_version)
         .args(&["--", "https://github.com/dart-lang/sdk.git"])
-        .arg(git_out_dir.display().to_string())
+        .arg(&git_out_dir)
         .output()
         .unwrap();
 
@@ -185,36 +182,34 @@ fn download_dart_src(dart_version: &str, out_dir: &Path) {
     remove_dir_all(&git_out_dir);
 }
 
-fn copy_all_in(target_dir: &Path, out_dir: &Path, extensions: &[&str]) {
-    for dir_entry in target_dir
+fn copy_all_in(src_dir: &Path, dest_dir: &Path, extensions: &[&str]) {
+    for src_entry in src_dir
         .read_dir()
-        .unwrap_or_else(|e| panic!("Copying files failed: {}\n{}", target_dir.display(), e))
+        .unwrap_or_else(|e| panic!("Copying files failed: {}\n{}", src_dir.display(), e))
     {
-        let dir_entry = dir_entry.unwrap();
-        let f_type = dir_entry.file_type().unwrap();
-        let from_path = &dir_entry.path();
-        let to_path = &out_dir.join(dir_entry.file_name());
-        if f_type.is_dir() {
-            create_dir(to_path);
-            copy_all_in(from_path, to_path, extensions);
-        } else if f_type.is_file() && check_extension(from_path, extensions) {
-            copy_file(from_path, to_path);
+        let src_entry = src_entry.unwrap();
+        let src_type = src_entry.file_type().unwrap();
+        let src_path = &src_entry.path();
+        let dest_path = &dest_dir.join(src_entry.file_name());
+        if src_type.is_dir() {
+            create_dir(dest_path);
+            copy_all_in(src_path, dest_path, extensions);
+        } else if src_type.is_file() && check_extension(src_path, extensions) {
+            copy_file(src_path, dest_path);
         }
     }
 }
 
 fn check_extension(path: &Path, extensions: &[&str]) -> bool {
-    path.extension()
-        .map(|stem| {
-            let stem = stem.to_str().unwrap();
-            extensions.contains(&stem)
-        })
-        .unwrap_or(false)
+    path.extension().map_or(false, |extension| {
+        let extension = extension.to_str().unwrap();
+        extensions.contains(&extension)
+    })
 }
 
 fn temp_dir() -> PathBuf {
     let out = Command::new("mktemp")
-        .args(&["-d", "-t", "dart-api-dl-codegen.XXXX"])
+        .args(["-d", "-t", "dart-api-dl-codegen.XXXX"])
         .output()
         .unwrap();
     if !out.status.success() {
