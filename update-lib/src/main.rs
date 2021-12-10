@@ -161,9 +161,9 @@ fn download_dart_src(dart_version: &str, out_dir: &Path) {
     let git_out_dir = temp_dir();
     //TODO use `git sparse-checkout` instead.
     let ec = Command::new("git")
-        .args(&["clone", "--depth", "1", "--branch"])
+        .args(["clone", "--depth", "1", "--branch"])
         .arg(dart_version)
-        .args(&["--", "https://github.com/dart-lang/sdk.git"])
+        .args(["--", "https://github.com/dart-lang/sdk.git"])
         .arg(&git_out_dir)
         .output()
         .unwrap();
