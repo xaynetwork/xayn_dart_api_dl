@@ -71,7 +71,6 @@ jobs:
         working-directory: ${{ env.RUST_WORKSPACE }}
         run: |
           cargo build -p integration-tests-bindings
-          cat integration_tests/lib/src/genesis.ffigen.dart
 
       - name: Unit test of integration test crate
         working-directory: ${{ env.RUST_WORKSPACE }}
