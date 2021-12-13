@@ -24,7 +24,10 @@ licensed as following:
 
     Copyright 2021 Xayn AG
 
-    Licensed under the Apache License, Version 2.0 <LICENSE-APACHE or https://www.apache.org/licenses/LICENSE-2.0>. Files in the project may not be copied, modified, or distributed except according to those terms.
+    Licensed under the Apache License, Version 2.0 <LICENSE-APACHE or
+    https://www.apache.org/licenses/LICENSE-2.0>. Files in the project
+    may not be copied, modified, or distributed except according to
+    those terms.
 
 The contents in the [./dart-src](./dart-src) are extracted from the dart language
 project and are licensed as defined by the [license file](./dart-src/LICENSE) in that folder.
