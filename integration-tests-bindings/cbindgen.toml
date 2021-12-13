@@ -8,7 +8,7 @@ no_includes = false
 
 [parse]
 parse_deps = true
-include = ["dart-api-dl"]
+include = ["xayn-dart-api-dl"]
 
 [export]
 include = ["InitData", "Dart_Port_DL"]
