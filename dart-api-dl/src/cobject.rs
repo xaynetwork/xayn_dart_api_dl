@@ -11,7 +11,7 @@
 //!   from an external source or by dereferencing
 //!   [`OwnedCObject`].
 //!
-//! - [`OwnedCObject`] a instance we created and as
+//! - [`OwnedCObject`] an instance we created and as
 //!   such we need to handle resource cleanup, like
 //!   freeing allocated string.
 use std::{
@@ -57,12 +57,12 @@ pub struct CObject {
 }
 
 impl CObject {
-    /// Cast a pointer to a `Dart_CObject` to a `CObject` for the duration of the closure.
+    /// Cast a pointer to a [`Dart_CObject`] to a [`CObject`] for the duration of the closure.
     ///
     /// # Safety
     ///
-    /// 1. the pointer must point to a valid [`Dat_CObject`]
-    /// 2. the [`Dat_CObject`] must be sound/consistent, e.g.
+    /// 1. the pointer must point to a valid [`Dart_CObject`]
+    /// 2. the [`Dart_CObject`] must be sound/consistent, e.g.
     ///    the type and set data match and are sound. This
     ///    moves the unsafety of the various `as_*` methods
     ///    into this method.
@@ -160,7 +160,7 @@ impl CObject {
         }
     }
 
-    /// Returns `Some` if the object is a array of references to [`CObject`]s.
+    /// Returns `Some` if the object is an array of references to [`CObject`]s.
     pub fn as_array(&self, rt: DartRuntime) -> Option<&[&CObject]> {
         if let Ok(CObjectRef::Array(array)) = self.value_ref(rt) {
             Some(array)
@@ -194,7 +194,7 @@ impl CObject {
 
     /// Returns `Some` if the object is a send port.
     ///
-    /// As we can send a `ILLEGAL_PORT` we can have a object which
+    /// As we can send a `ILLEGAL_PORT` we can have an object which
     /// is a send port variant but doesn't contain a `SendPort` as
     /// such it's a `Option<Option<>>`.
     #[allow(clippy::option_option)]
@@ -245,7 +245,7 @@ impl CObject {
         unsafe { self.obj.value.as_typed_data.type_ }.try_into()
     }
 
-    /// If the type is known returns a enums with a type specific reference to the data.
+    /// If the type is known returns an enums with a type specific reference to the data.
     ///
     /// Copy types are provided as copy instead of a reference.
     ///
@@ -627,7 +627,7 @@ impl OwnedCObject {
         Self(CObject { obj })
     }
 
-    /// Create a [`CObject`] containing null.
+    /// Create a [`OwnedCObject`] containing null.
     pub fn null() -> Self {
         Self::wrap_raw(Dart_CObject {
             type_: Dart_CObject_Type::Dart_CObject_kNull,
@@ -635,7 +635,7 @@ impl OwnedCObject {
         })
     }
 
-    /// Create a [`CObject`] containing a bool.
+    /// Create a [`OwnedCObject`] containing a bool.
     pub fn bool(val: bool) -> Self {
         Self::wrap_raw(Dart_CObject {
             type_: Dart_CObject_Type::Dart_CObject_kBool,
@@ -643,7 +643,7 @@ impl OwnedCObject {
         })
     }
 
-    /// Create a [`CObject`] containing a 32bit signed int.
+    /// Create a [`OwnedCObject`] containing a 32bit signed int.
     pub fn int32(val: i32) -> Self {
         Self::wrap_raw(Dart_CObject {
             type_: Dart_CObject_Type::Dart_CObject_kInt32,
@@ -651,7 +651,7 @@ impl OwnedCObject {
         })
     }
 
-    /// Create a [`CObject`] containing a 64bit signed int.
+    /// Create a [`OwnedCObject`] containing a 64bit signed int.
     pub fn int64(val: i64) -> Self {
         Self::wrap_raw(Dart_CObject {
             type_: Dart_CObject_Type::Dart_CObject_kInt64,
@@ -659,7 +659,7 @@ impl OwnedCObject {
         })
     }
 
-    /// Create a [`CObject`] containing a 64bit float.
+    /// Create a [`OwnedCObject`] containing a 64bit float.
     pub fn double(val: f64) -> Self {
         Self::wrap_raw(Dart_CObject {
             type_: Dart_CObject_Type::Dart_CObject_kDouble,
@@ -667,7 +667,7 @@ impl OwnedCObject {
         })
     }
 
-    /// Create a [`CObject`] containing a string.
+    /// Create a [`OwnedCObject`] containing a string.
     ///
     /// This clones the string.
     ///
@@ -684,9 +684,9 @@ impl OwnedCObject {
         }))
     }
 
-    /// Create a [`CObject`] containing a string.
+    /// Create a [`OwnedCObject`] containing a string.
     ///
-    /// Like [`CObject::string()`], but cut's of when encountering a `'\0'`.
+    /// Like [`OwnedCObject::string()`], but cut's of when encountering a `'\0'`.
     pub fn string_lossy(val: impl AsRef<str>) -> Self {
         let bytes = val.as_ref().as_bytes();
         let end_idx = bytes.iter().position(|b| *b == 0).unwrap_or(bytes.len());
@@ -700,7 +700,7 @@ impl OwnedCObject {
         })
     }
 
-    /// Create a [`CObject`] containing a [`SendPort`].
+    /// Create a [`OwnedCObject`] containing a [`SendPort`].
     pub fn send_port(port: SendPort) -> Self {
         let (id, origin_id) = port.as_raw();
         Self::wrap_raw(Dart_CObject {
@@ -711,7 +711,7 @@ impl OwnedCObject {
         })
     }
 
-    /// Create a [`CObject`] containing a [`Capability`].
+    /// Create a [`OwnedCObject`] containing a [`Capability`].
     pub fn capability(id: Capability) -> Self {
         Self::wrap_raw(Dart_CObject {
             type_: Dart_CObject_Type::Dart_CObject_kCapability,
@@ -721,11 +721,11 @@ impl OwnedCObject {
         })
     }
 
-    /// Create a [`CObject`] containing a array of boxed [`OwnedCObject`]'s.
+    /// Create a [`OwnedCObject`] containing an array of boxed [`OwnedCObject`]'s.
     #[allow(clippy::vec_box)]
     pub fn array(array: Vec<Box<OwnedCObject>>) -> Self {
         let bs = array.into_boxed_slice();
-        // We can't really have a array.len() > isize::MAX here, but we
+        // We can't really have an array.len() > isize::MAX here, but we
         // don't really don't want to panic.
         let len = bs.len().try_into().unwrap_or(isize::MAX);
         // SAFE: as CObject is repr(transparent) as such `Box<CObject>` and `*mut Dart_CObject` have same layout.
@@ -741,19 +741,19 @@ impl OwnedCObject {
         })
     }
 
-    /// Create a [`CObject`] containing typed data.
+    /// Create a [`OwnedCObject`] containing typed data.
     ///
     /// This will for now internally delegates to creating external
     /// typed data. This is an implementation details **which might
     /// change**.
     ///
-    /// Use [`CObject::external_typed_data()`] instead if you want
+    /// Use [`OwnedCObject::external_typed_data()`] instead if you want
     /// to rely on it's performance characteristics.
     pub fn typed_data(data: TypedData) -> Self {
         Self::external_typed_data(data)
     }
 
-    /// Create a [`CObject`] containing a .
+    /// Create a [`OwnedCObject`] containing a .
     pub fn external_typed_data<CET>(data: CET) -> Self
     where
         CET: CustomExternalTyped,

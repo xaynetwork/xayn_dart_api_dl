@@ -34,7 +34,7 @@ macro_rules! impl_from_to_pseudo_enums {
 }
 
 impl_from_to_pseudo_enums! {
-    /// Supported types of [`CObject`]s.
+    /// Supported types of [`CObject`](crate::cobject::CObject)s.
     #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
     pub enum CObjectType from Dart_CObject_Type {
         type Error = UnknownCObjectType;
@@ -52,7 +52,7 @@ impl_from_to_pseudo_enums! {
     }
 }
 
-/// The `CObjectType` isn't known/supported by this library.
+/// The [`CObjectType`] isn't known/supported by this library.
 ///
 /// There are a few cases where a type is not supported:
 ///
@@ -64,7 +64,7 @@ impl_from_to_pseudo_enums! {
 pub struct UnknownCObjectType(pub Dart_CObject_Type);
 
 impl_from_to_pseudo_enums! {
-    /// The type of typed data in a [`CObject`].
+    /// The type of typed data in a [`CObject`](crate::cobject::CObject).
     #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
     pub enum TypedDataType from Dart_TypedData_Type {
         type Error = UnknownTypedDataType;
@@ -86,7 +86,7 @@ impl_from_to_pseudo_enums! {
     }
 }
 
-/// The `CObjectType` isn't known/supported by this library.
+/// The [`CObjectType`] isn't known/supported by this library.
 ///
 /// There are a few cases where a type is not supported:
 ///
