@@ -11,6 +11,7 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+
 //! More convenient and safer bindings around `dart-api-dl-sys`.
 //!
 //! This crate provides wrappers for all functions in `dart_api_dl.h`
