@@ -11,6 +11,7 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+
 //! A small rust script for updating this library.
 //!
 //! Usage: `cargo run -p update-lib -- <dart-version>`
