@@ -37,9 +37,13 @@ use std::{
 };
 
 use dart_api_dl_sys::{
-    Dart_CObject, Dart_CObject_Type, _Dart_CObject__bindgen_ty_1,
-    _Dart_CObject__bindgen_ty_1__bindgen_ty_1, _Dart_CObject__bindgen_ty_1__bindgen_ty_2,
-    _Dart_CObject__bindgen_ty_1__bindgen_ty_3, _Dart_CObject__bindgen_ty_1__bindgen_ty_5,
+    Dart_CObject,
+    Dart_CObject_Type,
+    _Dart_CObject__bindgen_ty_1,
+    _Dart_CObject__bindgen_ty_1__bindgen_ty_1,
+    _Dart_CObject__bindgen_ty_1__bindgen_ty_2,
+    _Dart_CObject__bindgen_ty_1__bindgen_ty_3,
+    _Dart_CObject__bindgen_ty_1__bindgen_ty_5,
 };
 
 use crate::{ports::SendPort, DartRuntime};
