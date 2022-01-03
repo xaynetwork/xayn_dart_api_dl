@@ -4,7 +4,6 @@ version = "0.1.0"
 edition = "2018"
 license = "Apache-2.0"
 
-
 [dependencies]
 semver = "1.0.4"
 toml_edit = "0.10.1"
