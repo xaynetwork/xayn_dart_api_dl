@@ -88,7 +88,7 @@ impl DartRuntime {
 
     /// Wrap a raw port id as `NativeRecvPort`.
     ///
-    /// The returned type will closed the port when it's dropped and can
+    /// The returned type will close the port when it's dropped and can
     /// be used as a guard.
     pub fn native_recv_port_from_raw(&self, port: DartPortId) -> Option<NativeRecvPort> {
         (port != ILLEGAL_PORT).then(|| {
@@ -106,17 +106,17 @@ impl DartRuntime {
     /// By sending the port id of this port to dart you then can send
     /// messages from dart to rust.
     ///
-    /// Which thread will call the handler when is message is received is not
+    /// Which thread will call the handler when a message is received is not
     /// specified and might vary over the lifetime of the port.
     ///
     /// If `handle_concurrently` multiple threads might call the handler at the
     /// same time with different messages.
     ///
-    /// The `*mut Dart_CObject` passed in to the handler not an owned reference,
+    /// The `*mut Dart_CObject` does not pass an owned reference into the handler,
     /// dart will free the memory related to the passed in `CObject` after the
-    /// handle completes. Mutating the `CObject` will not change this. But that
-    /// fact it's not clearly documented either but derived from dart VM
-    /// implementation details. As such you should treat it as a `&`-reference.
+    /// handle completes. Mutating the `CObject` will likely not change what dart
+    /// does free. But that detail is not clearly documented.
+    /// As such you should treat it as a `&`-reference.
     ///
     /// Dart should never call the handler with a nullptr.
     ///
@@ -125,13 +125,12 @@ impl DartRuntime {
     /// - The `handler` must be safe to call with valid parameters.
     /// - The handler must not panic.
     /// - The handler must be safe to use under given `handle_concurrently` option.
-    unsafe fn unsafe_native_recp_port(
+    unsafe fn unsafe_native_recv_port(
         self,
         name: &str,
         handler: DartNativeMessageHandler,
         handle_concurrently: bool,
     ) -> Result<NativeRecvPort, PortCreationFailed> {
-        //TODO Result
         let c_name = CString::new(name)?;
 
         let port = unsafe {
@@ -142,7 +141,7 @@ impl DartRuntime {
             .ok_or(PortCreationFailed::DartFailed)
     }
 
-    /// A rust-safe way to creates a new [`NativeRecvPort`].
+    /// A rust-safe way to create a new [`NativeRecvPort`].
     ///
     /// Take a look at the [`NativeMessageHandler`] trait for details.
     ///
@@ -153,13 +152,12 @@ impl DartRuntime {
     /// - (If the api is not initialized, but you can only reach that
     ///   case with unsound code.)
     pub fn native_recv_port<N>(&self) -> Result<NativeRecvPort, PortCreationFailed>
-    //TODO Result
     where
         N: NativeMessageHandler,
     {
         //SAFE: The handle_message wrapper provides a safe abstraction
         return unsafe {
-            self.unsafe_native_recp_port(N::NAME, handle_message::<N>, N::CONCURRENT_HANDLING)
+            self.unsafe_native_recv_port(N::NAME, handle_message::<N>, N::CONCURRENT_HANDLING)
         };
 
         unsafe extern "C" fn handle_message<N>(ourself: DartPortId, data_ref: *mut Dart_CObject)
@@ -177,7 +175,7 @@ impl DartRuntime {
                             );
                         });
                     };
-                    forget(port);
+                    port.leak();
                 }
             }
         }
@@ -196,7 +194,7 @@ pub enum PortCreationFailed {
     /// A supposedly unreachable invariant was reached.
     ///
     /// This likely implies the violation of an unsafe contract
-    /// or an unsound assumptions in an unsafe function/block.
+    /// or an unsound assumption in an unsafe function/block.
     ///
     /// Normally we would prefer to panic, but panics in FFI
     /// are a problem so we have this error variant instead.
@@ -226,7 +224,7 @@ pub trait NativeMessageHandler {
 
     /// Called when handling a message.
     ///
-    /// `ourself` can be used to close the port (through you should not rely on
+    /// `ourself` can be used to close the port (though you should not rely on
     /// closing happening immediately, dart might/or might not still call it with
     /// already enqueued messages, closing might not be instantly either, do not
     /// rely on "currently" observed behavior/Dart VM code).
@@ -235,11 +233,11 @@ pub trait NativeMessageHandler {
     /// Called if [`NativeMessageHandler::handle_message()`] failed.
     ///
     /// It's called with the same object as `handle_message`, as well as a panic
-    /// converted to a [`OwnedCObject`] this allows sending back the panic through
+    /// converted to a [`OwnedCObject`]. This allows sending back the panic through
     /// a port in the original message.
     ///
-    /// This is not calling while `panicing`, as such this will not trigger a
-    /// "double-panic" induced abort. Through it also can't do anything with the
+    /// This is not called while `panicking`, as such this will not trigger a
+    /// "double-panic" induced abort. Though it also can't do anything with the
     /// panic so it will simply do nothing.
     fn handle_panic(
         rt: DartRuntime,
@@ -306,14 +304,14 @@ impl SendPort {
 
     /// Sends given [`CObject`] to given port.
     ///
-    /// Like in dart for data which is not externally typed a copy of the data is send
-    /// over the port and the object stays unchanged (through it might get temp.
-    /// modified while being enqueued, which isn't a problem for us to to the
+    /// Like in dart, for data which is not externally typed, a copy of the data is sent
+    /// over the port and the object stays unchanged (though it might get temp.
+    /// modified while being enqueued, which isn't a problem for us due to the
     /// guarantees of `&mut`).
     ///
-    /// In case of external typed data it will get send (moved) to the client,
-    /// to avoid accidentally dropping it when [`CObject`] is dropped
-    /// the [`CObject`] is set to represent null, iff the sending
+    /// In case of external typed data it will get sent (moved) to the client,
+    /// to avoid accidentally dropping it when [`CObject`] is dropped.
+    /// The [`CObject`] is set to represent null, iff the sending
     /// succeeded.
     ///
     /// If sending fails the cobject will stay unchanged.
@@ -325,7 +323,7 @@ impl SendPort {
         let need_nulling = cobject.r#type() == Ok(CObjectType::ExternalTypedData);
         // SAFE: As long as `OwnedCObject` was properly constructed and is kept in a sound
         //       state (which is a requirement of it's unsafe interfaces).
-        if unsafe { fpslot!(@call Dart_PostCObject_DL(self.port, cobject.as_ptr_mut()))? } {
+        if unsafe { fpslot!(@call Dart_PostCObject_DL(self.port, cobject.as_mut_ptr()))? } {
             if need_nulling {
                 cobject.set_to_null();
             }
@@ -343,7 +341,7 @@ impl SendPort {
 pub struct NativeRecvPort(SendPort);
 
 impl NativeRecvPort {
-    /// Prevent drop form closing this type.
+    /// Prevent drop form closing this port.
     pub fn leak(self) -> SendPort {
         let port = *self;
         forget(self);
@@ -354,8 +352,8 @@ impl NativeRecvPort {
 impl Drop for NativeRecvPort {
     fn drop(&mut self) {
         // SAFE:
-        // - Is save is calling dart functions is safe
-        // - and if calling it a bad port id is safe
+        // - Is save if calling dart functions is safe
+        // - and if calling it with a bad port id is safe
         //
         // Both should be the case
         let _ = unsafe { fpslot!(@call Dart_CloseNativePort_DL(self.as_raw().0)) };

@@ -42,7 +42,7 @@ fn main() {
         println!("cargo:rerun-if-changed={}", ffigen_out_file.display());
         set_current_dir(dart_dir).unwrap();
         run_cmd(Command::new("dart").args(&["pub", "get"]));
-        run_cmd(Command::new("dart").args(&["pub", "run", "ffigen", "--config", "ffigen.yaml"]));
+        run_cmd(Command::new("dart").args(&["run", "ffigen", "--config", "ffigen.yaml"]));
     }
 }
 

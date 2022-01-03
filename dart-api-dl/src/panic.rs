@@ -18,7 +18,7 @@ use crate::cobject::{CObject, OwnedCObject};
 
 /// If given function panics call the panic handler.
 ///
-/// The panic is converted to a `OwnedCObject`  and
+/// The panic is converted to an `OwnedCObject`  and
 /// passed to the panic handler.
 ///
 /// If the panic handler panics it's caught and ignored.
@@ -29,7 +29,7 @@ where
 {
     let a_obj = AssertUnwindSafe(&mut *obj);
     let err = match std::panic::catch_unwind(|| func(fix(a_obj))) {
-        Ok(val) => return val,
+        Ok(()) => return,
         Err(err) => err,
     };
 

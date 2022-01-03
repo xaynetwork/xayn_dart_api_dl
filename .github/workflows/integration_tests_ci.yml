@@ -69,13 +69,11 @@ jobs:
 
       - name: Build Rust
         working-directory: ${{ env.RUST_WORKSPACE }}
-        run: |
-          cargo build -p integration-tests-bindings
+        run: cargo build -p integration-tests-bindings
 
       - name: Unit test of integration test crate
         working-directory: ${{ env.RUST_WORKSPACE }}
-        run: |
-          cargo test -p integration-tests-bindings
+        run: cargo test -p integration-tests-bindings
 
       - name: Analyze code
         working-directory: ${{ env.DART_WORKSPACE }}
@@ -88,7 +86,7 @@ jobs:
         working-directory: ${{ env.DART_WORKSPACE }}
         run: dart test
 
-  # this is an helper that needs all the real leafs of the workflow.
+  # this is a helper that needs all the real leafs of the workflow.
   # It makes easier notify_main_failure because we only need to check
   # for this job
   ci-ok:

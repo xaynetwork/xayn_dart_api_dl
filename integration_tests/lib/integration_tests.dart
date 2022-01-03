@@ -59,8 +59,8 @@ class Commander {
       if (!ffiBool(ffi.setup_cmd_handler(port.sendPort.nativePort))) {
         throw Exception('failed to setup');
       }
-      final dynamic chan = await port.first;
-      final newInstance = Commander._(chan as SendPort);
+      final chan = await port.first as SendPort;
+      final newInstance = Commander._(chan);
       Commander._instance = newInstance;
       return newInstance;
     }

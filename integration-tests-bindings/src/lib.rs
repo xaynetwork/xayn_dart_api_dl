@@ -126,12 +126,12 @@ impl CmdHandler {
                     .get(1)
                     .ok_or("missing 1st number")?
                     .as_int(rt)
-                    .ok_or("first number not a number")?;
+                    .ok_or("first argument not a number")?;
                 let b = slice
                     .get(2)
-                    .ok_or("missing 2nt number")?
+                    .ok_or("missing 2nd number")?
                     .as_int(rt)
-                    .ok_or("second number not a number")?;
+                    .ok_or("second argument not a number")?;
                 let chan = ADDER_THREAD.lock().unwrap().clone();
                 chan.send((a, b, respond_to))
                     .map_err(|_| "Adder was shutdown".to_owned())?;

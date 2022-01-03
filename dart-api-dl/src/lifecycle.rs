@@ -28,19 +28,19 @@ pub type InitData = *mut c_void;
 ///
 /// Calling any other dart binding functions before this fails.
 ///
-/// It's ok to call this method multiple times and or from multiple threads
+/// It's ok to call this method multiple times and/or from multiple threads
 /// without any additional synchronization.
 ///
 /// # Errors
 ///
-/// This can produce a [`InitializationFailed::InitFailed`] error if initialization
+/// This can produce an [`InitializationFailed::InitFailed`] error if initialization
 /// fails. Dart doesn't tell us why initialization failed, but the only likely reason
 /// is that the major version associated with `dart_api_dl.h` of the Dart VM doesn't
 /// match the major version of the `dart_api_dl.h` we build against.
 ///
 /// # Safety
 ///
-/// The caller must also make sure that the function pointer slots are not longer
+/// The caller must also make sure that the function pointer slots are no longer
 /// used after first this call succeeded and then the Dart VM stopped.
 ///
 /// This is a rather leaky unsafe abstraction but we do not really have any
@@ -48,7 +48,7 @@ pub type InitData = *mut c_void;
 /// callbacks.
 ///
 /// Luckily even after the Dart VM stops all of the functionality exposed here
-/// should be rust-safe to call (but might abort the process), through there
+/// should be rust-safe to call (but might abort the process), though there
 /// are no guarantees.
 //FIXME: we could have a Dart VM shutdown guard by returning an external typed data
 // "with magic" destructor the user has to place in a static variable. But besides
@@ -121,7 +121,7 @@ pub enum InitializationFailed {
 #[error("uninitialized function slot: {}", _0)]
 pub struct UninitializedFunctionSlot(pub(crate) &'static str);
 
-macro_rules! __fpslot {
+macro_rules! fpslot {
     (@call $slot:ident ( $($pn:expr),* )) => (
         match $slot {
             Some(func) => Ok(func($($pn),*)),
@@ -130,7 +130,7 @@ macro_rules! __fpslot {
     );
 }
 
-pub(crate) use __fpslot as fpslot;
+pub(crate) use fpslot;
 
 #[cfg(test)]
 mod tests {
@@ -140,7 +140,6 @@ mod tests {
 
     #[test]
     fn test_static_constraints() {
-        // assert_not_impl_any!(InDartIsolate: Send, Sync);
         assert_impl_all!(DartRuntime: Send, Sync);
     }
 }
