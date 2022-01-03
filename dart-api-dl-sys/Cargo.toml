@@ -11,9 +11,9 @@ links = "dart_api_dl"
 static_assertions = "1.1.0"
 
 [build-dependencies]
+bindgen = "0.59.2"
+cc = "1.0.72"
 semver = "1.0.4"
-bindgen = "0.59.1"
-cc = "1.0.71"
 
 # v0.1.20 is on edition 2021 which is a problem as it means rust won't parse the
 # the Cargo.toml manifest. We don't use it but cargo can't know that and as such

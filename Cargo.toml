@@ -9,7 +9,7 @@ resolver = "2"
 
 [workspace.metadata]
 # minimum supported rust version
-msrv = "1.51.0"
+msrv = "1.55.0"
 
 [patch.crates-io]
 xayn-dart-api-dl-sys = { path = "./dart-api-dl-sys" }

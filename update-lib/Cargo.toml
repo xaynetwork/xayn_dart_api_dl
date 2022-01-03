@@ -7,4 +7,4 @@ license = "Apache-2.0"
 
 [dependencies]
 semver = "1.0.4"
-toml_edit = "0.10.0"
+toml_edit = "0.10.1"

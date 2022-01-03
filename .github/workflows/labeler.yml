@@ -28,7 +28,7 @@ jobs:
         with:
           token: ${{secrets.GITHUB_TOKEN}}
           label: "Ready for review ✅"
-          type: removegit add -p 
+          type: removegit add -p
 
   ready_for_review_pr:
     if: (github.event.pull_request.draft == false)

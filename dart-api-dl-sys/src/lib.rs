@@ -19,11 +19,11 @@
 //! with darts `ffi` package it is about to/did replace the previous
 //! way to extends dart through bindings to `dart_api.h`. It is independent
 //! of flutter but it also can be used in combination with flutter and by
-//! flutter plugins, _but is a different API then the one provided by flutter
+//! flutter plugins, _but is a different API than the one provided by flutter
 //! for flutter plugins_.
 //!
 //! This library provides just the auto generated bindings and statically
-//! links in the necessary C glue code **it's strongly recommended to
+//! links in the necessary C glue code. **It's strongly recommended to
 //! use the `dart-api-dl` library, which provides a still low-level but
 //! slightly nicer and safer to use interface**.
 //!
@@ -32,8 +32,8 @@
 //! Any Dart VM with a `dart_api_dl.h` version >=2.0 and
 //! <3.0 are supported. This means the minimal supported
 //! dart version is 2.12. Known compatible versions
-//! include 2.13, 2.14 and 2.15 (through 2.15 adds
-//! an new CObject variant we do not yet support).
+//! include 2.13, 2.14 and 2.15 (though 2.15 adds
+//! a new CObject variant we do not yet support).
 //!
 //! # Dart Functions
 //!
@@ -45,13 +45,13 @@
 //! completed should be treated as unsound, even if you do null pointer
 //! checks.
 //!
-//! ## Dart DL API Version Handling
+//! ## Dart API DL Version Handling
 //!
-//! The dart DL API is separately versioned from dart. Calling
+//! The dart API DL is separately versioned from dart. Calling
 //! [`Dart_InitializeApiDL`] will fail if the major version doesn't
 //! match. **It won't fail if the minor version doesn't match.**
 //!
-//! Using bindings with a lower minor version (e.g. 2.0) then
+//! Using bindings with a lower minor version (e.g. 2.0) than
 //! that of the Dart VM (e.g. 2.1) is not a problem at all
 //! and no special care must be taking in that case.
 //!
@@ -62,7 +62,7 @@
 //! - Some function pointer might be null even after [`Dart_InitializeApiDL`]
 //!   was called. Doing "is null" checks *after* (and only after) [`Dart_InitializeApiDL`]
 //!   was called required for any function added after version 2.0
-//!   and is sound ("is null" checks before initialization are not sound!!).
+//!   and is sound ("is null" checks before initialization are not sound!).
 //!
 //! - You must not use variants of [`Dart_CObject_Type`]/[`Dart_CObject`] which
 //!   didn't exist in the dart VM's API version.
@@ -70,8 +70,8 @@
 //! The const [`DART_API_DL_MAJOR_VERSION`] and [`DART_API_DL_MINOR_VERSION`]
 //! represent the version of this bindings.
 //!
-//! The version of the Dart VM's DL API **can not be look up, the functionality
-//! is missing.** Currently we are at DL API version 2.0 so it doesn't matter.
+//! The version of the Dart VM's API DL **can not be looked up, the functionality
+//! is missing.** Currently we are at API DL version 2.0 so it doesn't matter.
 // FIXME: But Dart 2.15 will bump it to 2.1 (hopefully) in a (potentially) non-detectable way.
 //        If it's not fixed by dart we could somewhat work around it, but I hope we don't need to.
 //        Also versions are accessible from dart, so higher level bindings
