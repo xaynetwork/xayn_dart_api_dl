@@ -15,7 +15,6 @@
 //! A small rust script for updating this library.
 //!
 //! Usage: `cargo run -p update-lib -- <dart-version>`
-//!
 
 use std::{
     env::{self, set_current_dir},
