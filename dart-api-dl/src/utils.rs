@@ -35,10 +35,7 @@ use std::{convert::TryInto, process::abort, ptr::NonNull};
 /// itself panicking would be better as we are in FFI code and not
 /// necessary inside of an `catch_unwind` block we do not want to
 /// do so.
-pub(crate) unsafe fn prepare_dart_array_parts<T>(
-    ptr: *const T,
-    len: isize,
-) -> (*const T, usize) {
+pub(crate) unsafe fn prepare_dart_array_parts<T>(ptr: *const T, len: isize) -> (*const T, usize) {
     let len = len.try_into().unwrap_or_else(|_| abort());
     if (len == 0) != ptr.is_null() {
         abort()
@@ -52,10 +49,7 @@ pub(crate) unsafe fn prepare_dart_array_parts<T>(
 }
 
 /// See [`prepare_dart_array_parts()`].
-pub(crate) unsafe fn prepare_dart_array_parts_mut<T>(
-    ptr: *mut T,
-    len: isize,
-) -> (*mut T, usize) {
+pub(crate) unsafe fn prepare_dart_array_parts_mut<T>(ptr: *mut T, len: isize) -> (*mut T, usize) {
     let len = len.try_into().unwrap_or_else(|_| abort());
     if (len == 0) != ptr.is_null() {
         abort()
