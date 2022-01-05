@@ -38,6 +38,7 @@ pub mod cobject;
 mod lifecycle;
 mod panic;
 pub mod ports;
+mod utils;
 
 pub use lifecycle::*;
 

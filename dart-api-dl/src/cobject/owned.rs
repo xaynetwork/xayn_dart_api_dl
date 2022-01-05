@@ -26,7 +26,7 @@ use dart_api_dl_sys::{
     _Dart_CObject__bindgen_ty_1__bindgen_ty_3,
 };
 
-use crate::ports::SendPort;
+use crate::{ports::SendPort, utils::prepare_dart_array_parts_mut};
 
 use super::{CObjectRef, Capability, CustomExternalTyped, TypedData};
 
@@ -199,11 +199,12 @@ impl Drop for CObject {
             | Dart_CObject_Type::Dart_CObject_kSendPort => { /*nothing to do*/ }
             Dart_CObject_Type::Dart_CObject_kString => {
                 drop(unsafe { CString::from_raw(self.0.value.as_string) });
-                self.0.type_ = Dart_CObject_Type::Dart_CObject_kNull;
             }
             Dart_CObject_Type::Dart_CObject_kArray => drop(unsafe {
-                let len = self.0.value.as_array.length.try_into().unwrap_or(0);
-                let ptr = self.0.value.as_array.values;
+                let (ptr, len) = prepare_dart_array_parts_mut(
+                    self.0.value.as_array.values,
+                    self.0.value.as_array.length,
+                );
                 Vec::from_raw_parts(ptr, len, len)
             }),
             Dart_CObject_Type::Dart_CObject_kExternalTypedData => {
@@ -216,7 +217,6 @@ impl Drop for CObject {
                     let data = etd.data;
                     let peer = etd.peer;
                     let callback = etd.callback;
-                    self.0.type_ = Dart_CObject_Type::Dart_CObject_kNull;
                     (callback.expect("unexpected null pointer callback"))(
                         data.cast::<c_void>(),
                         peer,

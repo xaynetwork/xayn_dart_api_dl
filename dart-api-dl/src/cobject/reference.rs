@@ -21,7 +21,11 @@ use std::{
 
 use dart_api_dl_sys::{Dart_CObject, Dart_CObject_Type};
 
-use crate::{ports::SendPort, DartRuntime};
+use crate::{
+    ports::SendPort,
+    utils::{prepare_dart_array_parts, prepare_dart_array_parts_mut},
+    DartRuntime,
+};
 
 use super::{
     CObjectType,
@@ -52,9 +56,6 @@ use super::{
 /// without noticeable drawbacks.
 //TODO we actually can use some form of pooled GC like pattern, but it's for now
 // too much work for hardly any benefits for our use case.
-//
-// Wait a moment can we ever receive a externally typed data?
-// - If so we might need to
 ///
 ///
 /// Especially important is that if it is not owned by dart but by us we do use it's
@@ -338,12 +339,13 @@ impl<'a> CObjectRef<'a> {
                 // - ExternalTypedData is repr(transparent)
                 // - *const/*mut/& all have the same representation
                 Ok(Array(unsafe {
-                    let ar = &self.partial_mut.value.as_array;
-                    // *mut *mut Dart_CObject
-                    let ptr = ar.values as *const CObjectRef<'a>;
-                    // This runs in FFI so we really don't want to panic, so
-                    // if length <0 we set length = 0 (which in itself is unsound).
-                    slice::from_raw_parts(ptr, ar.length.try_into().unwrap_or(0))
+                    let as_array = &self.partial_mut.value.as_array;
+                    let (ptr, len) = prepare_dart_array_parts(
+                        // *mut *mut Dart_CObject
+                        as_array.values.cast::<CObjectRef<'a>>(),
+                        as_array.length,
+                    );
+                    slice::from_raw_parts(ptr, len)
                 }))
             }
             CObjectType::TypedData | CObjectType::ExternalTypedData => {
@@ -353,14 +355,10 @@ impl<'a> CObjectRef<'a> {
                     // - CObject is sound
                     // - we checked the type
                     unsafe {
-                        let data = &self.partial_mut.value.as_typed_data;
-                        TypedDataRef::from_raw(
-                            data_type,
-                            data.values as *const u8,
-                            // This runs in FFI so we really don't want to panic, so
-                            // if length <0 we set length = 0 (which in itself is unsound).
-                            data.length.try_into().unwrap_or(0),
-                        )
+                        let as_typed_data = &self.partial_mut.value.as_typed_data;
+                        let (ptr, len) =
+                            prepare_dart_array_parts(as_typed_data.values, as_typed_data.length);
+                        TypedDataRef::from_raw(data_type, ptr, len)
                     }
                 });
 
@@ -394,15 +392,13 @@ impl<'a> CObjectRef<'a> {
             Ok(CObjectType::ExternalTypedData) => self.set_to_null(),
             Ok(CObjectType::Array) => {
                 let array = unsafe {
-                    // The array from `as_array` is (and must be) immutable
-                    // but we need a mutable iterable one here
-                    let ar = &mut self.partial_mut.value.as_array;
-                    // *mut *mut Dart_CObject
-                    let ptr = ar.values.cast::<CObjectRef<'a>>();
-                    // This runs in FFI so we really don't want to panic, so
-                    // if length <0 we set length = 0 (which in itself is unsound).
-
-                    slice::from_raw_parts_mut(ptr, ar.length.try_into().unwrap_or(0))
+                    let as_array = &mut self.partial_mut.value.as_array;
+                    let (ptr, len) = prepare_dart_array_parts_mut(
+                        // *mut *mut Dart_CObject
+                        as_array.values.cast::<CObjectRef<'a>>(),
+                        as_array.length,
+                    );
+                    slice::from_raw_parts_mut(ptr, len)
                 };
                 for element in array {
                     element.null_external_typed_objects(rt);
