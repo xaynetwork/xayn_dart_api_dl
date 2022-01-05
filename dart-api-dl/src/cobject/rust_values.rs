@@ -59,7 +59,7 @@ pub enum CObjectValuesRef<'a> {
 }
 
 /// Reference to typed data in a `CObject`.
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub enum TypedDataRef<'a> {
     /// `u8` data, for rust the same as `Uint8` and `Uint8Clamped`.
     ///
