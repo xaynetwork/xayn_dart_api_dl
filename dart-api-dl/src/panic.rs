@@ -14,7 +14,7 @@
 
 use std::panic::{AssertUnwindSafe, UnwindSafe};
 
-use crate::cobject::{CObject, OwnedCObject};
+use crate::cobject::{CObject, CObjectRef};
 
 /// If given function panics call the panic handler.
 ///
@@ -22,27 +22,27 @@ use crate::cobject::{CObject, OwnedCObject};
 /// passed to the panic handler.
 ///
 /// If the panic handler panics it's caught and ignored.
-pub(crate) fn catch_unwind_panic_as_cobject<F, P>(obj: &mut CObject, func: F, on_panic: P)
+pub(crate) fn catch_unwind_panic_as_cobject<F, P>(mut obj: CObjectRef<'_>, func: F, on_panic: P)
 where
-    F: UnwindSafe + FnOnce(&mut CObject),
-    P: UnwindSafe + FnOnce(&mut CObject, &mut OwnedCObject),
+    F: UnwindSafe + FnOnce(CObjectRef<'_>),
+    P: UnwindSafe + FnOnce(CObjectRef<'_>, CObject),
 {
-    let a_obj = AssertUnwindSafe(&mut *obj);
+    let a_obj = AssertUnwindSafe(obj.reborrow());
     let err = match std::panic::catch_unwind(|| func(fix(a_obj))) {
         Ok(()) => return,
         Err(err) => err,
     };
 
-    let mut err = if let Some(err) = err.downcast_ref::<String>() {
-        OwnedCObject::string_lossy(err)
+    let err = if let Some(err) = err.downcast_ref::<String>() {
+        CObject::string_lossy(err)
     } else if let Some(err) = err.downcast_ref::<&'static str>() {
-        OwnedCObject::string_lossy(err)
+        CObject::string_lossy(err)
     } else {
-        OwnedCObject::string_lossy("panic of unsupported type")
+        CObject::string_lossy("panic of unsupported type")
     };
 
     let a_obj = AssertUnwindSafe(obj);
-    if std::panic::catch_unwind(AssertUnwindSafe(|| on_panic(fix(a_obj), &mut err))).is_err() {
+    if std::panic::catch_unwind(AssertUnwindSafe(|| on_panic(fix(a_obj), err))).is_err() {
         //TODO log
     }
 }
@@ -64,15 +64,15 @@ mod tests {
         //      we do create abstractions which make it "safe" to call
         //      them, even through it here isn't.
         let rt = unsafe { DartRuntime::instance_unchecked() };
-        let mut null = OwnedCObject::null();
+        let mut null = CObject::null();
 
         let mut res = None;
         let a_res = AssertUnwindSafe(&mut res);
         catch_unwind_panic_as_cobject(
-            &mut null,
+            null.as_ref(),
             |_| panic!("hy there"),
-            move |_, obj| {
-                *fix(a_res) = obj.as_string(rt).map(ToOwned::to_owned);
+            move |_, mut obj| {
+                *fix(a_res) = obj.as_ref().as_string(rt).map(ToOwned::to_owned);
             },
         );
         assert_eq!(res, Some("hy there".to_owned()));
@@ -80,10 +80,10 @@ mod tests {
         let mut res = None;
         let res_ref = AssertUnwindSafe(&mut res);
         catch_unwind_panic_as_cobject(
-            &mut null,
+            null.as_ref(),
             |_| panic!("hy {}", "there"),
-            move |_, obj| {
-                *fix(res_ref) = obj.as_string(rt).map(ToOwned::to_owned);
+            move |_, mut obj| {
+                *fix(res_ref) = obj.as_ref().as_string(rt).map(ToOwned::to_owned);
             },
         );
         assert_eq!(res, Some("hy there".to_owned()));
@@ -91,8 +91,8 @@ mod tests {
 
     #[test]
     fn test_panic_in_panic_handler_does_not_propagate() {
-        let mut null = OwnedCObject::null();
-        catch_unwind_panic_as_cobject(&mut null, |_| panic!(), |_, _| panic!());
+        let mut null = CObject::null();
+        catch_unwind_panic_as_cobject(null.as_ref(), |_| panic!(), |_, _| panic!());
     }
 
     // Rust 2021 is to clever and want's to only borrow the res.0 by the closure ;=)

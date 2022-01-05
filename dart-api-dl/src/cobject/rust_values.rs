@@ -18,7 +18,7 @@ use dart_api_dl_sys::_Dart_CObject__bindgen_ty_1__bindgen_ty_5;
 
 use crate::ports::SendPort;
 
-use super::{CObject, TypedDataType, UnknownTypedDataType};
+use super::{CObjectRef, TypedDataType, UnknownTypedDataType};
 
 /// External Typed Data as represented in a [`Dart_CObject`].
 pub type ExternalTypedData = _Dart_CObject__bindgen_ty_1__bindgen_ty_5;
@@ -30,7 +30,7 @@ pub type Capability = i64;
 ///
 /// In case of copy data a copy is used instead.
 #[derive(Debug)]
-pub enum CObjectRef<'a> {
+pub enum CObjectValuesRef<'a> {
     /// The object is null.
     Null,
     /// The object is a bool.
@@ -44,7 +44,7 @@ pub enum CObjectRef<'a> {
     /// The object is a string.
     String(&'a str),
     /// The object is an array of `CObject` references.
-    Array(&'a [&'a CObject]),
+    Array(&'a [CObjectRef<'a>]),
     /// The object is a typed data.
     TypedData {
         /// `Ok` if the data is of a supported typed data type.

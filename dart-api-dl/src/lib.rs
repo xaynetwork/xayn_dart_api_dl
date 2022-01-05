@@ -29,8 +29,6 @@
     unsafe_op_in_unsafe_fn
 )]
 #![warn(missing_docs, unreachable_pub)]
-//TODO remove
-#![allow(clippy::module_name_repetitions)]
 #![allow(clippy::must_use_candidate, clippy::items_after_statements)]
 // We use the zero sized `DartRuntime` type as a guard
 // so most of it's functions which have `self` don't use self.

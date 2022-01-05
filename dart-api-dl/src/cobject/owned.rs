@@ -15,8 +15,6 @@
 use std::{
     convert::{TryFrom, TryInto},
     ffi::{c_void, CString, NulError},
-    fmt::Debug,
-    ops::{Deref, DerefMut},
 };
 
 use dart_api_dl_sys::{
@@ -30,60 +28,65 @@ use dart_api_dl_sys::{
 
 use crate::ports::SendPort;
 
-use super::{CObject, Capability, CustomExternalTyped, TypedData};
+use super::{CObjectRef, Capability, CustomExternalTyped, TypedData};
 
 /// Wrapper around a [`CObject`] which is owned by rust.
-#[derive(Debug)]
+//TODO impl debug
 #[repr(transparent)]
-pub struct OwnedCObject(CObject);
+pub struct CObject(Dart_CObject);
 
-impl OwnedCObject {
-    //not meant to be public, just a helper to reduce code duplication
-    fn wrap_raw(obj: Dart_CObject) -> Self {
-        Self(CObject(obj))
+impl CObject {
+    /// Create a [`CObjectRef`],
+    ///
+    /// Be aware that while this acts like an ref due to the way dart works
+    /// it requires a `&mut` borrow.
+    pub fn as_ref(&mut self) -> CObjectRef<'_> {
+        CObjectRef {
+            partial_mut: &mut self.0,
+        }
     }
 
-    /// Create a [`OwnedCObject`] containing null.
+    /// Create a [`CObject`] containing null.
     pub fn null() -> Self {
-        Self::wrap_raw(Dart_CObject {
+        CObject(Dart_CObject {
             type_: Dart_CObject_Type::Dart_CObject_kNull,
             value: _Dart_CObject__bindgen_ty_1 { as_bool: false },
         })
     }
 
-    /// Create an [`OwnedCObject`] containing a bool.
+    /// Create a [`CObject`] containing a bool.
     pub fn bool(val: bool) -> Self {
-        Self::wrap_raw(Dart_CObject {
+        CObject(Dart_CObject {
             type_: Dart_CObject_Type::Dart_CObject_kBool,
             value: _Dart_CObject__bindgen_ty_1 { as_bool: val },
         })
     }
 
-    /// Create an [`OwnedCObject`] containing a 32bit signed int.
+    /// Create a [`CObject`] containing a 32bit signed int.
     pub fn int32(val: i32) -> Self {
-        Self::wrap_raw(Dart_CObject {
+        CObject(Dart_CObject {
             type_: Dart_CObject_Type::Dart_CObject_kInt32,
             value: _Dart_CObject__bindgen_ty_1 { as_int32: val },
         })
     }
 
-    /// Create an [`OwnedCObject`] containing a 64bit signed int.
+    /// Create a [`CObject`] containing a 64bit signed int.
     pub fn int64(val: i64) -> Self {
-        Self::wrap_raw(Dart_CObject {
+        CObject(Dart_CObject {
             type_: Dart_CObject_Type::Dart_CObject_kInt64,
             value: _Dart_CObject__bindgen_ty_1 { as_int64: val },
         })
     }
 
-    /// Create an [`OwnedCObject`] containing a 64bit float.
+    /// Create a [`CObject`] containing a 64bit float.
     pub fn double(val: f64) -> Self {
-        Self::wrap_raw(Dart_CObject {
+        CObject(Dart_CObject {
             type_: Dart_CObject_Type::Dart_CObject_kDouble,
             value: _Dart_CObject__bindgen_ty_1 { as_double: val },
         })
     }
 
-    /// Create an [`OwnedCObject`] containing a string.
+    /// Create a [`CObject`] containing a string.
     ///
     /// This clones the string.
     ///
@@ -92,7 +95,7 @@ impl OwnedCObject {
     /// If the string contains `0` bytes an error is returned.
     pub fn string(val: impl AsRef<str>) -> Result<Self, NulError> {
         let val = CString::new(val.as_ref())?;
-        Ok(Self::wrap_raw(Dart_CObject {
+        Ok(CObject(Dart_CObject {
             type_: Dart_CObject_Type::Dart_CObject_kString,
             value: _Dart_CObject__bindgen_ty_1 {
                 as_string: val.into_raw(),
@@ -100,7 +103,7 @@ impl OwnedCObject {
         }))
     }
 
-    /// Create an [`OwnedCObject`] containing a string.
+    /// Create a [`CObject`] containing a string.
     ///
     /// Like [`OwnedCObject::string()`], but cuts off when encountering a `'\0'`.
     pub fn string_lossy(val: impl AsRef<str>) -> Self {
@@ -108,7 +111,7 @@ impl OwnedCObject {
         let end_idx = bytes.iter().position(|b| *b == 0).unwrap_or(bytes.len());
         //Safe we just did the checks
         let c_string = unsafe { CString::from_vec_unchecked(bytes[..end_idx].to_owned()) };
-        Self::wrap_raw(Dart_CObject {
+        CObject(Dart_CObject {
             type_: Dart_CObject_Type::Dart_CObject_kString,
             value: _Dart_CObject__bindgen_ty_1 {
                 as_string: c_string.into_raw(),
@@ -116,10 +119,10 @@ impl OwnedCObject {
         })
     }
 
-    /// Create an [`OwnedCObject`] containing a [`SendPort`].
+    /// Create a [`CObject`] containing a [`SendPort`].
     pub fn send_port(port: SendPort) -> Self {
         let (id, origin_id) = port.as_raw();
-        Self::wrap_raw(Dart_CObject {
+        CObject(Dart_CObject {
             type_: Dart_CObject_Type::Dart_CObject_kSendPort,
             value: _Dart_CObject__bindgen_ty_1 {
                 as_send_port: _Dart_CObject__bindgen_ty_1__bindgen_ty_1 { id, origin_id },
@@ -127,9 +130,9 @@ impl OwnedCObject {
         })
     }
 
-    /// Create an [`OwnedCObject`] containing a [`Capability`].
+    /// Create a [`CObject`] containing a [`Capability`].
     pub fn capability(id: Capability) -> Self {
-        Self::wrap_raw(Dart_CObject {
+        CObject(Dart_CObject {
             type_: Dart_CObject_Type::Dart_CObject_kCapability,
             value: _Dart_CObject__bindgen_ty_1 {
                 as_capability: _Dart_CObject__bindgen_ty_1__bindgen_ty_2 { id },
@@ -137,16 +140,16 @@ impl OwnedCObject {
         })
     }
 
-    /// Create an [`OwnedCObject`] containing an array of boxed [`OwnedCObject`]'s.
+    /// Create a [`CObject`] containing an array of boxed [`CObject`]'s.
     #[allow(clippy::vec_box)]
-    pub fn array(array: Vec<Box<OwnedCObject>>) -> Self {
+    pub fn array(array: Vec<Box<CObject>>) -> Self {
         let bs = array.into_boxed_slice();
         // We can't really have an array.len() > isize::MAX here, but we
         // really don't want to panic.
         let len = bs.len().try_into().unwrap_or(isize::MAX);
         // SAFE: as CObject is repr(transparent) as such `Box<CObject>` and `*mut Dart_CObject` have same layout.
         let ptr = Box::into_raw(bs).cast::<*mut Dart_CObject>();
-        Self::wrap_raw(Dart_CObject {
+        CObject(Dart_CObject {
             type_: Dart_CObject_Type::Dart_CObject_kArray,
             value: _Dart_CObject__bindgen_ty_1 {
                 as_array: _Dart_CObject__bindgen_ty_1__bindgen_ty_3 {
@@ -157,7 +160,7 @@ impl OwnedCObject {
         })
     }
 
-    /// Create an [`OwnedCObject`] containing typed data.
+    /// Create a [`CObject`] containing typed data.
     ///
     /// This will for now internally delegate to creating external
     /// typed data. This is an implementational detail **which might
@@ -169,12 +172,12 @@ impl OwnedCObject {
         Self::external_typed_data(data)
     }
 
-    /// Create an [`OwnedCObject`] containing a .
+    /// Create a [`CObject`] containing a .
     pub fn external_typed_data<CET>(data: CET) -> Self
     where
         CET: CustomExternalTyped,
     {
-        Self::wrap_raw(Dart_CObject {
+        CObject(Dart_CObject {
             type_: Dart_CObject_Type::Dart_CObject_kExternalTypedData,
             value: _Dart_CObject__bindgen_ty_1 {
                 //Safe: due to the unsafe contract on CustomExternalTyped
@@ -184,23 +187,9 @@ impl OwnedCObject {
     }
 }
 
-impl Deref for OwnedCObject {
-    type Target = CObject;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
-impl DerefMut for OwnedCObject {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.0
-    }
-}
-
-impl Drop for OwnedCObject {
+impl Drop for CObject {
     fn drop(&mut self) {
-        match self.0 .0.type_ {
+        match self.0.type_ {
             Dart_CObject_Type::Dart_CObject_kNull
             | Dart_CObject_Type::Dart_CObject_kBool
             | Dart_CObject_Type::Dart_CObject_kInt32
@@ -209,12 +198,12 @@ impl Drop for OwnedCObject {
             | Dart_CObject_Type::Dart_CObject_kCapability
             | Dart_CObject_Type::Dart_CObject_kSendPort => { /*nothing to do*/ }
             Dart_CObject_Type::Dart_CObject_kString => {
-                drop(unsafe { CString::from_raw(self.0 .0.value.as_string) });
-                self.0 .0.type_ = Dart_CObject_Type::Dart_CObject_kNull;
+                drop(unsafe { CString::from_raw(self.0.value.as_string) });
+                self.0.type_ = Dart_CObject_Type::Dart_CObject_kNull;
             }
             Dart_CObject_Type::Dart_CObject_kArray => drop(unsafe {
-                let len = self.0 .0.value.as_array.length.try_into().unwrap_or(0);
-                let ptr = self.0 .0.value.as_array.values;
+                let len = self.0.value.as_array.length.try_into().unwrap_or(0);
+                let ptr = self.0.value.as_array.values;
                 Vec::from_raw_parts(ptr, len, len)
             }),
             Dart_CObject_Type::Dart_CObject_kExternalTypedData => {
@@ -223,11 +212,11 @@ impl Drop for OwnedCObject {
                 // Safe:
                 // - we just call the finalization handler
                 unsafe {
-                    let etd = &self.0 .0.value.as_external_typed_data;
+                    let etd = &self.0.value.as_external_typed_data;
                     let data = etd.data;
                     let peer = etd.peer;
                     let callback = etd.callback;
-                    self.0 .0.type_ = Dart_CObject_Type::Dart_CObject_kNull;
+                    self.0.type_ = Dart_CObject_Type::Dart_CObject_kNull;
                     (callback.expect("unexpected null pointer callback"))(
                         data.cast::<c_void>(),
                         peer,
@@ -243,7 +232,7 @@ impl Drop for OwnedCObject {
     }
 }
 
-impl Default for OwnedCObject {
+impl Default for CObject {
     fn default() -> Self {
         Self::null()
     }
@@ -251,9 +240,9 @@ impl Default for OwnedCObject {
 
 macro_rules! impl_from {
     ($($t:ty => $c:ident);* $(;)?) => ($(
-        impl From<$t> for OwnedCObject {
+        impl From<$t> for CObject {
             fn from(v: $t) -> Self {
-                OwnedCObject::$c(v)
+                CObject::$c(v)
             }
         }
     )*);
@@ -264,14 +253,14 @@ impl_from!(
     i32 => int32;
     i64 => int64;
     SendPort => send_port;
-    Vec<Box<OwnedCObject>> => array;
+    Vec<Box<CObject>> => array;
     TypedData => typed_data;
 );
 
-impl TryFrom<String> for OwnedCObject {
+impl TryFrom<String> for CObject {
     type Error = NulError;
 
     fn try_from(value: String) -> Result<Self, Self::Error> {
-        OwnedCObject::string(value)
+        CObject::string(value)
     }
 }

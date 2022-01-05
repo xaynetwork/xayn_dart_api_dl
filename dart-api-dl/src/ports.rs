@@ -31,7 +31,7 @@ use dart_api_dl_sys::{
 use thiserror::Error;
 
 use crate::{
-    cobject::{CObject, CObjectType, OwnedCObject},
+    cobject::{CObject, CObjectRef},
     lifecycle::{fpslot, DartRuntime},
     panic::catch_unwind_panic_as_cobject,
     UninitializedFunctionSlot,
@@ -167,7 +167,7 @@ impl DartRuntime {
             if let Ok(rt) = DartRuntime::instance() {
                 if let Some(port) = rt.native_recv_port_from_raw(ourself) {
                     unsafe {
-                        CObject::with_pointer(data_ref, |data| {
+                        CObjectRef::with_pointer(data_ref, |data| {
                             catch_unwind_panic_as_cobject(
                                 data,
                                 |data| N::handle_message(rt, &port, data),
@@ -228,7 +228,7 @@ pub trait NativeMessageHandler {
     /// closing happening immediately, dart might/or might not still call it with
     /// already enqueued messages, closing might not be instantly either, do not
     /// rely on "currently" observed behavior/Dart VM code).
-    fn handle_message(rt: DartRuntime, ourself: &NativeRecvPort, data: &mut CObject);
+    fn handle_message(rt: DartRuntime, ourself: &NativeRecvPort, data: CObjectRef<'_>);
 
     /// Called if [`NativeMessageHandler::handle_message()`] failed.
     ///
@@ -242,8 +242,8 @@ pub trait NativeMessageHandler {
     fn handle_panic(
         rt: DartRuntime,
         ourself: &NativeRecvPort,
-        data: &mut CObject,
-        panic: &mut OwnedCObject,
+        data: CObjectRef<'_>,
+        panic: CObject,
     );
 }
 
@@ -298,8 +298,8 @@ impl SendPort {
     /// # Errors
     ///
     /// If posting the message failed.
-    pub fn post_cobject(&self, mut cobject: OwnedCObject) -> Result<(), PostingMessageFailed> {
-        self.post_cobject_mut(&mut cobject)
+    pub fn post_cobject(&self, mut cobject: CObject) -> Result<(), PostingMessageFailed> {
+        self.post_cobject_ref(cobject.as_ref())
     }
 
     /// Sends given [`CObject`] to given port.
@@ -319,14 +319,18 @@ impl SendPort {
     /// # Errors
     ///
     /// If posting the message failed this will error.
-    pub fn post_cobject_mut(&self, cobject: &mut CObject) -> Result<(), PostingMessageFailed> {
-        let need_nulling = cobject.r#type() == Ok(CObjectType::ExternalTypedData);
+    pub fn post_cobject_ref(
+        &self,
+        mut cobject: CObjectRef<'_>,
+    ) -> Result<(), PostingMessageFailed> {
         // SAFE: As long as `OwnedCObject` was properly constructed and is kept in a sound
         //       state (which is a requirement of it's unsafe interfaces).
         if unsafe { fpslot!(@call Dart_PostCObject_DL(self.port, cobject.as_mut_ptr()))? } {
-            if need_nulling {
-                cobject.set_to_null();
-            }
+            // SAFE: If we have a `SendPort` the runtime must have been initialized.
+            let rt = unsafe { DartRuntime::instance_unchecked() };
+            // null everything which has been moved out semantically
+            // or else we will get double free or even use-after free problems
+            cobject.null_external_typed_objects(rt);
             Ok(())
         } else {
             Err(PostingMessageFailed)

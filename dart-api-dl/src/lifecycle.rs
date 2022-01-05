@@ -92,7 +92,6 @@ impl DartRuntime {
             .unwrap_or(Err(InitializationFailed::InitNotYetCalled))
     }
 
-    #[cfg(test)]
     pub(crate) unsafe fn instance_unchecked() -> Self {
         DartRuntime { _priv: () }
     }
