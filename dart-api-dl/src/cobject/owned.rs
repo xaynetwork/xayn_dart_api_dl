@@ -250,7 +250,7 @@ impl Default for OwnedCObject {
 }
 
 macro_rules! impl_from {
-    ($($t:ty => $c:ident;)*) => ($(
+    ($($t:ty => $c:ident);* $(;)?) => ($(
         impl From<$t> for OwnedCObject {
             fn from(v: $t) -> Self {
                 OwnedCObject::$c(v)

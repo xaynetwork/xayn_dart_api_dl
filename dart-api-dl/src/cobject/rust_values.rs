@@ -128,7 +128,7 @@ impl TypedDataRef<'_> {
     }
 }
 
-/// Owned typed data you can send to dart (through a `OwnedCObject`).
+/// Owned typed data you can send to dart (through a [`CObject`]).
 #[derive(Debug, Clone)]
 pub enum TypedData {
     /// A boxed slice of bytes.

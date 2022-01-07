@@ -233,7 +233,7 @@ pub trait NativeMessageHandler {
     /// Called if [`NativeMessageHandler::handle_message()`] failed.
     ///
     /// It's called with the same object as `handle_message`, as well as a panic
-    /// converted to a [`OwnedCObject`]. This allows sending back the panic through
+    /// converted to a [`CObject`]. This allows sending back the panic through
     /// a port in the original message.
     ///
     /// This is not called while `panicking`, as such this will not trigger a
