@@ -1,5 +1,5 @@
 
-name: Audit for Security Vulnerabilities (master)
+name: Audit for Security Vulnerabilities (main)
 
 on:
   schedule:
@@ -16,7 +16,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@ec3a7ce113134d7a93b817d10a8272cb61118579 # v2.4.0
         with:
-          ref: master
+          ref: main
 
       - name: Run cargo-audit
         id: cargo-audit
@@ -41,7 +41,7 @@ jobs:
                   "type": "section",
                   "text": {
                     "type": "mrkdwn",
-                    "text": `Workflow: ${process.env.AS_WORKFLOW}\nRepository: ${process.env.AS_REPO}\nRef: \`master\``
+                    "text": `Workflow: ${process.env.AS_WORKFLOW}\nRepository: ${process.env.AS_REPO}\nRef: \`main\``
                   }
                 },
               ],
