@@ -16,6 +16,7 @@ use std::ffi::c_void;
 
 use dart_api_dl_sys::Dart_InitializeApiDL;
 
+use displaydoc::Display;
 use once_cell::sync::OnceCell;
 use thiserror::Error;
 
@@ -98,14 +99,12 @@ impl DartRuntime {
 }
 
 /// Error representing that initialization failed.
-#[derive(Debug, Clone, Error)]
+#[derive(Debug, Clone, Error, Display)]
 #[non_exhaustive]
 pub enum InitializationFailed {
     /// Initialization was not yet done.
-    #[error("initialize_dart_api_dl was not yet called")]
     InitNotYetCalled,
     /// Initialization failed.
-    #[error("initializing dart api dl failed")]
     InitFailed,
 }
 
