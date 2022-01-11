@@ -33,7 +33,7 @@ use std::{convert::TryInto, process::abort, ptr::NonNull};
 ///
 /// In both cases there is some serious bug in the dart vm, while on
 /// itself panicking would be better as we are in FFI code and not
-/// necessary inside of an `catch_unwind` block we do not want to
+/// necessary inside of a `catch_unwind` block we do not want to
 /// do so.
 pub(crate) unsafe fn prepare_dart_array_parts<T>(ptr: *const T, len: isize) -> (*const T, usize) {
     let len = len.try_into().unwrap_or_else(|_| abort());

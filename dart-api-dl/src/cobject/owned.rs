@@ -30,16 +30,16 @@ use crate::{ports::SendPort, utils::prepare_dart_array_parts_mut};
 
 use super::{CObjectRef, Capability, CustomExternalTyped, TypedData};
 
-/// Wrapper around a [`CObject`] which is owned by rust.
+/// Wrapper around a [`Dart_CObject`] which is owned by rust.
 //TODO impl debug
 #[repr(transparent)]
 pub struct CObject(Dart_CObject);
 
 impl CObject {
-    /// Create a [`CObjectRef`],
+    /// Create a [`CObjectRef`].
     ///
-    /// Be aware that while this acts like an ref due to the way dart works
-    /// it requires a `&mut` borrow.
+    /// Be aware that this acts mostly like a read-only reference but due to
+    /// the way dart works it requires a `&mut` borrow.
     pub fn as_ref(&mut self) -> CObjectRef<'_> {
         CObjectRef {
             partial_mut: &mut self.0,
@@ -105,7 +105,7 @@ impl CObject {
 
     /// Create a [`CObject`] containing a string.
     ///
-    /// Like [`OwnedCObject::string()`], but cuts off when encountering a `'\0'`.
+    /// Like [`CObject::string()`], but cuts off when encountering a `'\0'`.
     pub fn string_lossy(val: impl AsRef<str>) -> Self {
         let bytes = val.as_ref().as_bytes();
         let end_idx = bytes.iter().position(|b| *b == 0).unwrap_or(bytes.len());
@@ -166,7 +166,7 @@ impl CObject {
     /// typed data. This is an implementational detail **which might
     /// change**.
     ///
-    /// Use [`OwnedCObject::external_typed_data()`] instead if you want
+    /// Use [`CObject::external_typed_data()`] instead if you want
     /// to rely on it's performance characteristics.
     pub fn typed_data(data: TypedData) -> Self {
         Self::external_typed_data(data)
@@ -226,7 +226,7 @@ impl Drop for CObject {
             _ => {
                 // also panics on: Dart_CObject_Type::Dart_CObject_kTypedData
                 // we currently don't create it so we can't reach a drop with it
-                unimplemented!("unsupported `OwnedCObject` format");
+                unimplemented!("unsupported `CObject` format");
             }
         }
     }

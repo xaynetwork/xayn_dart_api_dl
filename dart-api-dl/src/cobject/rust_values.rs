@@ -30,7 +30,7 @@ pub type Capability = i64;
 ///
 /// In case of copy data a copy is used instead.
 #[derive(Debug)]
-pub enum CObjectValuesRef<'a> {
+pub enum CObjectValuesRef<'b> {
     /// The object is null.
     Null,
     /// The object is a bool.
@@ -42,13 +42,13 @@ pub enum CObjectValuesRef<'a> {
     /// The object is a 64bit float.
     Double(f64),
     /// The object is a string.
-    String(&'a str),
+    String(&'b str),
     /// The object is an array of `CObject` references.
-    Array(&'a [CObjectRef<'a>]),
+    Array(&'b [CObjectRef<'b>]),
     /// The object is a typed data.
     TypedData {
         /// `Ok` if the data is of a supported typed data type.
-        data: Result<TypedDataRef<'a>, UnknownTypedDataType>,
+        data: Result<TypedDataRef<'b>, UnknownTypedDataType>,
         /// Hints if the data was externally typed or not.
         external_typed: bool,
     },
@@ -60,43 +60,43 @@ pub enum CObjectValuesRef<'a> {
 
 /// Reference to typed data in a `CObject`.
 #[derive(Debug, Clone, Copy)]
-pub enum TypedDataRef<'a> {
+pub enum TypedDataRef<'b> {
     /// `u8` data, for rust the same as `Uint8` and `Uint8Clamped`.
     ///
     /// In dart this is represented as a fixed sized buffer.
-    ByteData(&'a [u8]),
+    ByteData(&'b [u8]),
     /// `i8` data
-    Int8(&'a [i8]),
+    Int8(&'b [i8]),
     /// `u8` data, for rust the same as `ByteData` and `Uint8Clamped`.
-    Uint8(&'a [u8]),
+    Uint8(&'b [u8]),
     /// `u8` data, for rust the same as `ByteData` and `Uint8Clamped`.
     ///
     /// In dart a list of this type will clamp integers outside of
     /// the `u8` range when inserting them (instead of using the lower
     /// most byte).
-    Uint8Clamped(&'a [u8]),
+    Uint8Clamped(&'b [u8]),
     /// `i16` data
-    Int16(&'a [i16]),
+    Int16(&'b [i16]),
     /// `u16` data
-    Uint16(&'a [u16]),
+    Uint16(&'b [u16]),
     /// `i32` data
-    Int32(&'a [i32]),
+    Int32(&'b [i32]),
     /// `u32` data
-    Uint32(&'a [u32]),
+    Uint32(&'b [u32]),
     /// `i64` data
-    Int64(&'a [i64]),
+    Int64(&'b [i64]),
     /// `u64` data
-    Uint64(&'a [u64]),
+    Uint64(&'b [u64]),
     /// `f32` data
-    Float32(&'a [f32]),
+    Float32(&'b [f32]),
     /// `f64` data
-    Float64(&'a [f64]),
+    Float64(&'b [f64]),
     /// Data representing 4 `i32`s, which i32 maps to which field in dart isn't well defined.
-    Int32x4(&'a [[i32; 4]]),
+    Int32x4(&'b [[i32; 4]]),
     /// Data representing 4 `i32`s, which i32 maps to which field in dart isn't well defined.
-    Float32x4(&'a [[f32; 4]]),
+    Float32x4(&'b [[f32; 4]]),
     /// Data representing 4 `i32`s, which i32 maps to which field in dart isn't well defined.
-    Float64x2(&'a [[f64; 2]]),
+    Float64x2(&'b [[f64; 2]]),
 }
 
 impl TypedDataRef<'_> {
@@ -193,10 +193,10 @@ impl TypedData {
 /// The returned external typed data must be sound to
 /// use in a [`CObject`].
 pub unsafe trait CustomExternalTyped {
-    /// This should only be called by the `OwnedCObject` type.
+    /// This should only be called by the [`CObject`] type.
     ///
     /// Directly dropping the return type of this function will
-    /// leak the resources of this instance. Though `OwnedCObject`
+    /// leak the resources of this instance. Though [`CObject`]
     /// will make sure that this doesn't happen.
     fn into_external_typed_data(self) -> ExternalTypedData;
 }

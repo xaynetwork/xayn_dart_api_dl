@@ -37,31 +37,26 @@ use super::{
     UnknownTypedDataType,
 };
 
-/// Reference to a `Dart_CObject` which can be read, but which we do not own.
+/// Reference to a `Dart_CObject` that can be read but isn't own by rust.
 ///
-/// Due to the design of darts send port API this is still a mutable reference,
+/// Due to the design of dart's send port API this is a mutable reference,
 /// and might be changed in some cases, e.g. when externally typed data is moved
 /// to dart when sending it over a `SendPort`.
 ///
 /// # A note about why that is not a `&mut` ref
 ///
-/// At the same time this type might be owned by dart, so we should not arbitrarily
-/// modify it. While dart uses a form of pooled GC and as such a modification normally
-/// should not have too bad consequences if it's owned by us we do not have a pooled
-/// GC so modifying it can lead to problems. Basically we can at most move things out
-/// of it and if we don't do that carefully it might cause memory leaks.
+/// `CObjectRef` might be owned by dart, so we should not arbitrarily
+/// modify it. While dart uses a form of pooled GC and as such a modification
+/// shouldn't normally have too bad consequences, with rust we don't have such mechanism,
+/// which in turn could cause problems. Basically, we can at most move things out
+/// of it but if we don't do that carefully, it might cause memory leaks.
 ///
-/// More important we must not swap components between `CObjects` owned by different
-/// sources, at the same time we can't encode the ownership source into the type
-/// without noticeable drawbacks.
-//TODO we actually can use some form of pooled GC like pattern, but it's for now
-// too much work for hardly any benefits for our use case.
+/// More important we must not swap allocated values between `CObjects`. As swapping
+/// between dart and rust owned objects, or between two object with different lifetimes
+/// will cause soundness issues once at lest one of them is dropped.
 ///
-///
-/// Especially important is that if it is not owned by dart but by us we do use it's
-/// st
 /// As such we can't deallocate anything in it and should in general not modify it.
-// Transparent repr is very important as we will "unsafe" cast between the dart type
+// Note: Transparent repr is very important as we will "unsafe" cast between the dart type
 // and our new-type which we use to attach methods and safety to the dart type.
 #[repr(transparent)]
 pub struct CObjectRef<'a> {
@@ -69,21 +64,21 @@ pub struct CObjectRef<'a> {
     ///
     /// # Safety
     ///
-    /// The referenced [`Dart_CObject`] must only be modified in form
-    /// of nulling parts of it (external typed data) or the temporary
-    /// modifications done by dart when sending it through a port.
+    /// It is only allowed to modify the referenced [`Dart_CObject`] by
+    /// setting the external typed data to null or by temporary modifications
+    /// made by dart when sending it via the port.
     ///
-    /// This guarantees are similar to `Pin` but no quite as strict.
+    /// Those guarantees are similar to `Pin` but less strict.
     ///
-    /// You could also say this is basically a `&Dart_CObject` except
-    /// for nulling externally typed data when it got moved out and
+    /// You could say that this is basically a `&Dart_CObject` except that
+    /// externally typed data is set to null when it has been moved out and
     /// the fact that sending requires a mut ref for tmp. in place
-    /// modifications dart does as a form of optimization.
+    /// modifications that dart does as a form of optimization.
     pub(super) partial_mut: &'a mut Dart_CObject,
 }
 
 impl<'a> CObjectRef<'a> {
-    /// Cast a pointer to a [`Dart_CObject`] to a [`CObjectRef`] for the duration of the closure.
+    /// Cast a pointer from a [`Dart_CObject`] to a [`CObjectRef`] for the duration of the closure.
     ///
     /// # Safety
     ///
@@ -92,7 +87,7 @@ impl<'a> CObjectRef<'a> {
     ///    the type and set data match and are sound. This
     ///    moves the unsafety of the various `as_*` methods
     ///    into this method.
-    /// 3. it must be valid to turn the pointer into an `&mut`
+    /// 3. it must be valid to turn the pointer into a `&mut`
     ///    for the duration of this function call
     pub unsafe fn with_pointer<R>(
         ptr: *mut Dart_CObject,
@@ -117,9 +112,10 @@ impl<'a> CObjectRef<'a> {
     /// # Safety
     ///
     /// The returned pointer must only be used for sending it
-    /// to an port, if it contains external typed data this
-    /// must be removed after the sending by nulling all
-    /// [`Dart_CObject`] containing external typed data.
+    /// to a port. If the [`Dart_CObject`] contains external typed data,
+    /// this data must be removed after sending by setting it to null.
+    ///
+    /// The `SendPort` abstraction provided by this library does so automatically.
     pub(crate) fn as_mut_ptr(&mut self) -> *mut Dart_CObject {
         self.partial_mut
     }
@@ -300,31 +296,31 @@ impl<'a> CObjectRef<'a> {
             CObjectType::Null => Ok(Null),
             CObjectType::Bool => {
                 // Safe:
-                // - CObject is sound
+                // - the CObject behind the reference is sound
                 // - we checked the type
                 Ok(Bool(unsafe { self.partial_mut.value.as_bool }))
             }
             CObjectType::Int32 => {
                 // Safe:
-                // - CObject is sound
+                // - the CObject behind the reference is sound
                 // - we checked the type
                 Ok(Int32(unsafe { self.partial_mut.value.as_int32 }))
             }
             CObjectType::Int64 => {
                 // Safe:
-                // - CObject is sound
+                // - the CObject behind the reference is sound
                 // - we checked the type
                 Ok(Int64(unsafe { self.partial_mut.value.as_int64 }))
             }
             CObjectType::Double => {
                 // Safe:
-                // - CObject is sound
+                // - the CObject behind the reference is sound
                 // - we checked the type
                 Ok(Double(unsafe { self.partial_mut.value.as_double }))
             }
             CObjectType::String => {
                 // Safe:
-                // - CObject is sound
+                // - the CObject behind the reference is sound
                 // - we checked the type
                 // - strings in CObject are utf-8 (and 0 terminated)
                 Ok(String(unsafe {
@@ -334,7 +330,7 @@ impl<'a> CObjectRef<'a> {
             }
             CObjectType::Array => {
                 // Safe:
-                // - CObject is sound
+                // - the CObject behind the reference is sound
                 // - we checked the type
                 // - ExternalTypedData is repr(transparent)
                 // - *const/*mut/& all have the same representation
@@ -352,7 +348,7 @@ impl<'a> CObjectRef<'a> {
                 // Safe: We checked the object type.
                 let data = unsafe { self.read_typed_data_type() }.map(|data_type| {
                     // Safe:
-                    // - CObject is sound
+                    // - the CObject behind the reference is sound
                     // - we checked the type
                     unsafe {
                         let as_typed_data = &self.partial_mut.value.as_typed_data;
@@ -369,7 +365,7 @@ impl<'a> CObjectRef<'a> {
             }
             CObjectType::SendPort => {
                 // Safe:
-                // - CObject is sound
+                // - the CObject behind the reference is sound
                 // - we checked the type
                 Ok(SendPort(unsafe {
                     let sp = &self.partial_mut.value.as_send_port;
@@ -378,7 +374,7 @@ impl<'a> CObjectRef<'a> {
             }
             CObjectType::Capability => {
                 // Safe:
-                // - CObject is sound
+                // - the CObject behind the reference is sound
                 // - we checked the type
                 Ok(Capability(unsafe {
                     self.partial_mut.value.as_capability.id

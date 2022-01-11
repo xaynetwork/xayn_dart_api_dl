@@ -23,8 +23,8 @@ import 'package:integration_tests/src/load_lib.dart' show ffi;
 
 /// ffi bool as dart bool
 ///
-/// ffigen might depending on factors outside of it's version
-/// sometimes generate a bool returning function an sometimes an
+/// ffigen might, depending on factors outside of it's version,
+/// sometimes generate a bool returning function and sometimes an
 /// integer returning function.
 bool ffiBool(Object val) {
   if (val is int) {

@@ -18,7 +18,7 @@ use crate::cobject::{CObject, CObjectRef};
 
 /// If given function panics call the panic handler.
 ///
-/// The panic is converted to an `OwnedCObject`  and
+/// The panic is converted to a `CObject`  and
 /// passed to the panic handler.
 ///
 /// If the panic handler panics it's caught and ignored.
@@ -48,8 +48,8 @@ where
 }
 
 // Rust2021 is too clever
-fn fix<T>(a: AssertUnwindSafe<T>) -> T {
-    a.0
+fn fix<T>(v: AssertUnwindSafe<T>) -> T {
+    v.0
 }
 
 #[cfg(test)]

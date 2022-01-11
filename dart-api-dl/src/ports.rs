@@ -61,7 +61,7 @@ impl DartRuntime {
     /// This is done so because `ILLEGAL_PORT` is in generally
     /// used to indicate both "no port" and "somehow bad port".
     ///
-    /// This is safe as sending data to a "invalid" (not yet opened/already closed)
+    /// This is safe as sending data to an "invalid" (not yet opened/already closed)
     /// port is safe in dart (and in my understanding must be or it would invalidate
     /// the dart security model).
     pub fn send_port_from_raw(&self, port: DartPortId) -> Option<SendPort> {
@@ -323,7 +323,7 @@ impl SendPort {
         &self,
         mut cobject: CObjectRef<'_>,
     ) -> Result<(), PostingMessageFailed> {
-        // SAFE: As long as `OwnedCObject` was properly constructed and is kept in a sound
+        // SAFE: As long as `CObject` was properly constructed and is kept in a sound
         //       state (which is a requirement of it's unsafe interfaces).
         if unsafe { fpslot!(@call Dart_PostCObject_DL(self.port, cobject.as_mut_ptr()))? } {
             // SAFE: If we have a `SendPort` the runtime must have been initialized.
