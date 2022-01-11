@@ -82,7 +82,7 @@ fn setup_cmd_handler_inner(respond_to: DartPortId) -> Result<(), SetupError> {
     log("setup-3");
     let mut cobj = CObject::send_port(adder_send_port);
     log("setup-4");
-    send_port.post_cobject_ref(cobj.as_ref())?;
+    send_port.post_cobject_mut(cobj.as_mut())?;
     log("setup-5");
     Ok(())
 }
@@ -169,8 +169,8 @@ impl NativeMessageHandler for CmdHandler {
             if let Some(respond_to) = slice.get(0).and_then(|o| o.as_send_port(rt)).flatten() {
                 if let Err(err) = Self::handle_cmd(rt, respond_to, &slice[1..]) {
                     if let Ok(mut err) = CObject::string(format!("Error: {}", err)) {
-                        if respond_to.post_cobject_ref(err.as_ref()).is_err() {
-                            log(format!("Failed to post error: {:?}", err.as_ref()));
+                        if respond_to.post_cobject_mut(err.as_mut()).is_err() {
+                            log(format!("Failed to post error: {:?}", err.as_mut()));
                         }
                     }
                 }
@@ -199,7 +199,7 @@ impl NativeMessageHandler for CmdHandler {
             _ => return,
         };
 
-        if let Err(_err) = send_port.post_cobject_ref(panic.as_ref()) {
+        if let Err(_err) = send_port.post_cobject_mut(panic.as_mut()) {
             //TODO
         }
     }

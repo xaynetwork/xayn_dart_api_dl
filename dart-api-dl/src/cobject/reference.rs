@@ -52,7 +52,7 @@ use super::{
 /// of it but if we don't do that carefully, it might cause memory leaks.
 ///
 /// More important we must not swap allocated values between `CObjects`. As swapping
-/// between dart and rust owned objects, or between two object with different lifetimes
+/// between dart and rust owned objects, or between two objects with different lifetimes
 /// will cause soundness issues once at lest one of them is dropped.
 ///
 /// As such we can't deallocate anything in it and should in general not modify it.

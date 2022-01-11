@@ -160,14 +160,14 @@ impl DartRuntime {
             self.unsafe_native_recv_port(N::NAME, handle_message::<N>, N::CONCURRENT_HANDLING)
         };
 
-        unsafe extern "C" fn handle_message<N>(ourself: DartPortId, data_ref: *mut Dart_CObject)
+        unsafe extern "C" fn handle_message<N>(ourself: DartPortId, data_mut: *mut Dart_CObject)
         where
             N: NativeMessageHandler,
         {
             if let Ok(rt) = DartRuntime::instance() {
                 if let Some(port) = rt.native_recv_port_from_raw(ourself) {
                     unsafe {
-                        CObjectMut::with_pointer(data_ref, |data| {
+                        CObjectMut::with_pointer(data_mut, |data| {
                             catch_unwind_panic_as_cobject(
                                 data,
                                 |data| N::handle_message(rt, &port, data),
@@ -299,7 +299,7 @@ impl SendPort {
     ///
     /// If posting the message failed.
     pub fn post_cobject(&self, mut cobject: CObject) -> Result<(), PostingMessageFailed> {
-        self.post_cobject_ref(cobject.as_ref())
+        self.post_cobject_mut(cobject.as_mut())
     }
 
     /// Sends given [`CObject`] to given port.
@@ -319,7 +319,7 @@ impl SendPort {
     /// # Errors
     ///
     /// If posting the message failed this will error.
-    pub fn post_cobject_ref(
+    pub fn post_cobject_mut(
         &self,
         mut cobject: CObjectMut<'_>,
     ) -> Result<(), PostingMessageFailed> {

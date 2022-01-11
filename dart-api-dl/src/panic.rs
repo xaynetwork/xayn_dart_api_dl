@@ -18,7 +18,7 @@ use crate::cobject::{CObject, CObjectMut};
 
 /// If given function panics call the panic handler.
 ///
-/// The panic is converted to a `CObject`  and
+/// The panic is converted to a `CObject` and
 /// passed to the panic handler.
 ///
 /// If the panic handler panics it's caught and ignored.
@@ -69,21 +69,21 @@ mod tests {
         let mut res = None;
         let a_res = AssertUnwindSafe(&mut res);
         catch_unwind_panic_as_cobject(
-            null.as_ref(),
+            null.as_mut(),
             |_| panic!("hy there"),
             move |_, mut obj| {
-                *fix(a_res) = obj.as_ref().as_string(rt).map(ToOwned::to_owned);
+                *fix(a_res) = obj.as_mut().as_string(rt).map(ToOwned::to_owned);
             },
         );
         assert_eq!(res, Some("hy there".to_owned()));
 
         let mut res = None;
-        let res_ref = AssertUnwindSafe(&mut res);
+        let res_mut = AssertUnwindSafe(&mut res);
         catch_unwind_panic_as_cobject(
-            null.as_ref(),
+            null.as_mut(),
             |_| panic!("hy {}", "there"),
             move |_, mut obj| {
-                *fix(res_ref) = obj.as_ref().as_string(rt).map(ToOwned::to_owned);
+                *fix(res_mut) = obj.as_mut().as_string(rt).map(ToOwned::to_owned);
             },
         );
         assert_eq!(res, Some("hy there".to_owned()));
@@ -92,7 +92,7 @@ mod tests {
     #[test]
     fn test_panic_in_panic_handler_does_not_propagate() {
         let mut null = CObject::null();
-        catch_unwind_panic_as_cobject(null.as_ref(), |_| panic!(), |_, _| panic!());
+        catch_unwind_panic_as_cobject(null.as_mut(), |_| panic!(), |_, _| panic!());
     }
 
     // Rust 2021 is to clever and want's to only borrow the res.0 by the closure ;=)

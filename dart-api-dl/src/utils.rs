@@ -14,15 +14,15 @@
 
 use std::{convert::TryInto, process::abort, ptr::NonNull};
 
-/// Turns a pointer and length valid for a rust slice for a dart array pointer and length.
+/// Prepares a pointer and length value valid for a rust slice from a pointer and length value of a dart array.
 ///
 /// If a nullptr is passed in `NonNull::dangle()` is returned as pointer for the
 /// zero length slice.
 ///
 /// # Safety
 ///
-/// The `ptr` must either be a null pointer or one which is
-/// valid for creating a slice of `length` element of type `T`.
+/// The `ptr` must either be a null pointer or valid for creating a
+/// slice of `length` element of type `T`.
 ///
 /// See [`std::slice::from_raw_parts_mut`].
 ///
@@ -31,10 +31,10 @@ use std::{convert::TryInto, process::abort, ptr::NonNull};
 /// - Aborts if `len < 0` and it's not a null pointer.
 /// - Aborts if `len > 0` and it's a null pointer.
 ///
-/// In both cases there is some serious bug in the dart vm, while on
-/// itself panicking would be better as we are in FFI code and not
-/// necessary inside of a `catch_unwind` block we do not want to
-/// do so.
+/// In both cases there is a soundness bug in the dart vm. As such
+/// aborting is ok. On itself panicking would be better, but as we are
+/// in FFI code and not necessary inside of a `catch_unwind` block we
+/// must not panic.
 pub(crate) unsafe fn prepare_dart_array_parts<T>(ptr: *const T, len: isize) -> (*const T, usize) {
     let len = len.try_into().unwrap_or_else(|_| abort());
     if (len == 0) != ptr.is_null() {
