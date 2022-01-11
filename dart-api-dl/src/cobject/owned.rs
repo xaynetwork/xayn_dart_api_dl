@@ -28,20 +28,20 @@ use dart_api_dl_sys::{
 
 use crate::{ports::SendPort, utils::prepare_dart_array_parts_mut};
 
-use super::{CObjectRef, Capability, CustomExternalTyped, TypedData};
+use super::{CObjectMut, Capability, CustomExternalTyped, TypedData};
 
 /// Wrapper around a [`Dart_CObject`] which is owned by rust.
-//TODO impl debug
+//FIXME impl debug when we add a `CObjectRef` with a `value_ref()` method.
 #[repr(transparent)]
 pub struct CObject(Dart_CObject);
 
 impl CObject {
-    /// Create a [`CObjectRef`].
+    /// Create a [`CObjectMut`].
     ///
     /// Be aware that this acts mostly like a read-only reference but due to
     /// the way dart works it requires a `&mut` borrow.
-    pub fn as_ref(&mut self) -> CObjectRef<'_> {
-        CObjectRef {
+    pub fn as_ref(&mut self) -> CObjectMut<'_> {
+        CObjectMut {
             partial_mut: &mut self.0,
         }
     }

@@ -31,7 +31,7 @@ use dart_api_dl_sys::{
 use thiserror::Error;
 
 use crate::{
-    cobject::{CObject, CObjectRef},
+    cobject::{CObject, CObjectMut},
     lifecycle::{fpslot, DartRuntime},
     panic::catch_unwind_panic_as_cobject,
     UninitializedFunctionSlot,
@@ -167,7 +167,7 @@ impl DartRuntime {
             if let Ok(rt) = DartRuntime::instance() {
                 if let Some(port) = rt.native_recv_port_from_raw(ourself) {
                     unsafe {
-                        CObjectRef::with_pointer(data_ref, |data| {
+                        CObjectMut::with_pointer(data_ref, |data| {
                             catch_unwind_panic_as_cobject(
                                 data,
                                 |data| N::handle_message(rt, &port, data),
@@ -228,7 +228,7 @@ pub trait NativeMessageHandler {
     /// closing happening immediately, dart might/or might not still call it with
     /// already enqueued messages, closing might not be instantly either, do not
     /// rely on "currently" observed behavior/Dart VM code).
-    fn handle_message(rt: DartRuntime, ourself: &NativeRecvPort, data: CObjectRef<'_>);
+    fn handle_message(rt: DartRuntime, ourself: &NativeRecvPort, data: CObjectMut<'_>);
 
     /// Called if [`NativeMessageHandler::handle_message()`] failed.
     ///
@@ -242,7 +242,7 @@ pub trait NativeMessageHandler {
     fn handle_panic(
         rt: DartRuntime,
         ourself: &NativeRecvPort,
-        data: CObjectRef<'_>,
+        data: CObjectMut<'_>,
         panic: CObject,
     );
 }
@@ -321,7 +321,7 @@ impl SendPort {
     /// If posting the message failed this will error.
     pub fn post_cobject_ref(
         &self,
-        mut cobject: CObjectRef<'_>,
+        mut cobject: CObjectMut<'_>,
     ) -> Result<(), PostingMessageFailed> {
         // SAFE: As long as `CObject` was properly constructed and is kept in a sound
         //       state (which is a requirement of it's unsafe interfaces).

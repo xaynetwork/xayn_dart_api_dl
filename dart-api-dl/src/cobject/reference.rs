@@ -45,7 +45,7 @@ use super::{
 ///
 /// # A note about why that is not a `&mut` ref
 ///
-/// `CObjectRef` might be owned by dart, so we should not arbitrarily
+/// `CObjectMut` might be owned by dart, so we should not arbitrarily
 /// modify it. While dart uses a form of pooled GC and as such a modification
 /// shouldn't normally have too bad consequences, with rust we don't have such mechanism,
 /// which in turn could cause problems. Basically, we can at most move things out
@@ -59,7 +59,7 @@ use super::{
 // Note: Transparent repr is very important as we will "unsafe" cast between the dart type
 // and our new-type which we use to attach methods and safety to the dart type.
 #[repr(transparent)]
-pub struct CObjectRef<'a> {
+pub struct CObjectMut<'a> {
     /// The reference to the raw `Dart_CObject`.
     ///
     /// # Safety
@@ -77,8 +77,8 @@ pub struct CObjectRef<'a> {
     pub(super) partial_mut: &'a mut Dart_CObject,
 }
 
-impl<'a> CObjectRef<'a> {
-    /// Cast a pointer from a [`Dart_CObject`] to a [`CObjectRef`] for the duration of the closure.
+impl<'a> CObjectMut<'a> {
+    /// Cast a pointer from a [`Dart_CObject`] to a [`CObjectMut`] for the duration of the closure.
     ///
     /// # Safety
     ///
@@ -91,18 +91,18 @@ impl<'a> CObjectRef<'a> {
     ///    for the duration of this function call
     pub unsafe fn with_pointer<R>(
         ptr: *mut Dart_CObject,
-        func: impl for<'b> FnOnce(CObjectRef<'b>) -> R,
+        func: impl for<'b> FnOnce(CObjectMut<'b>) -> R,
     ) -> R {
         func(unsafe {
-            CObjectRef {
+            CObjectMut {
                 partial_mut: &mut *ptr,
             }
         })
     }
 
     /// Reborrows this instance.
-    pub fn reborrow(&mut self) -> CObjectRef<'_> {
-        CObjectRef {
+    pub fn reborrow(&mut self) -> CObjectMut<'_> {
+        CObjectMut {
             partial_mut: self.partial_mut,
         }
     }
@@ -125,7 +125,7 @@ impl<'a> CObjectRef<'a> {
         self.partial_mut.type_ = Dart_CObject_Type::Dart_CObject_kNull;
     }
 
-    /// Returns the type (tag/variant) of the [`CObjectRef`].
+    /// Returns the type (tag/variant) of the [`CObjectMut`].
     ///
     /// # Errors
     ///
@@ -194,8 +194,8 @@ impl<'a> CObjectRef<'a> {
         }
     }
 
-    /// Returns `Some` if the object is an array of references to [`CObjectRef`]s.
-    pub fn as_array(&self, rt: DartRuntime) -> Option<&[CObjectRef<'_>]> {
+    /// Returns `Some` if the object is an array of references to [`CObjectMut`]s.
+    pub fn as_array(&self, rt: DartRuntime) -> Option<&[CObjectMut<'_>]> {
         if let Ok(CObjectValuesRef::Array(array)) = self.value_ref(rt) {
             Some(array)
         } else {
@@ -251,7 +251,7 @@ impl<'a> CObjectRef<'a> {
 
     /// Returns `Some` if the object is typed data.
     ///
-    /// This is similar to [`CObjectRef.as_typed_data()`] but only returns the typed
+    /// This is similar to [`CObjectMut.as_typed_data()`] but only returns the typed
     /// data type.
     ///
     /// Returns `Some(Err(_))` if the typed data type isn't supported by this library.
@@ -338,7 +338,7 @@ impl<'a> CObjectRef<'a> {
                     let as_array = &self.partial_mut.value.as_array;
                     let (ptr, len) = prepare_dart_array_parts(
                         // *mut *mut Dart_CObject
-                        as_array.values.cast::<CObjectRef<'a>>(),
+                        as_array.values.cast::<CObjectMut<'a>>(),
                         as_array.length,
                     );
                     slice::from_raw_parts(ptr, len)
@@ -391,7 +391,7 @@ impl<'a> CObjectRef<'a> {
                     let as_array = &mut self.partial_mut.value.as_array;
                     let (ptr, len) = prepare_dart_array_parts_mut(
                         // *mut *mut Dart_CObject
-                        as_array.values.cast::<CObjectRef<'a>>(),
+                        as_array.values.cast::<CObjectMut<'a>>(),
                         as_array.length,
                     );
                     slice::from_raw_parts_mut(ptr, len)
@@ -405,14 +405,14 @@ impl<'a> CObjectRef<'a> {
     }
 }
 
-impl Debug for CObjectRef<'_> {
+impl Debug for CObjectMut<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         if let Ok(rt) = DartRuntime::instance() {
-            f.debug_struct("CObjectRef")
+            f.debug_struct("CObjectMut")
                 .field("as_enum", &self.value_ref(rt))
                 .finish()
         } else {
-            f.debug_struct("CObjectRef")
+            f.debug_struct("CObjectMut")
                 .field("as_enum", &"<unknown>")
                 .finish()
         }

@@ -18,7 +18,7 @@ use dart_api_dl_sys::_Dart_CObject__bindgen_ty_1__bindgen_ty_5;
 
 use crate::ports::SendPort;
 
-use super::{CObjectRef, TypedDataType, UnknownTypedDataType};
+use super::{CObjectMut, TypedDataType, UnknownTypedDataType};
 
 /// External Typed Data as represented in a [`Dart_CObject`].
 pub type ExternalTypedData = _Dart_CObject__bindgen_ty_1__bindgen_ty_5;
@@ -44,7 +44,7 @@ pub enum CObjectValuesRef<'b> {
     /// The object is a string.
     String(&'b str),
     /// The object is an array of `CObject` references.
-    Array(&'b [CObjectRef<'b>]),
+    Array(&'b [CObjectMut<'b>]),
     /// The object is a typed data.
     TypedData {
         /// `Ok` if the data is of a supported typed data type.

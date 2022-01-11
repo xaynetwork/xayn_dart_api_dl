@@ -14,7 +14,7 @@
 
 use std::panic::{AssertUnwindSafe, UnwindSafe};
 
-use crate::cobject::{CObject, CObjectRef};
+use crate::cobject::{CObject, CObjectMut};
 
 /// If given function panics call the panic handler.
 ///
@@ -22,10 +22,10 @@ use crate::cobject::{CObject, CObjectRef};
 /// passed to the panic handler.
 ///
 /// If the panic handler panics it's caught and ignored.
-pub(crate) fn catch_unwind_panic_as_cobject<F, P>(mut obj: CObjectRef<'_>, func: F, on_panic: P)
+pub(crate) fn catch_unwind_panic_as_cobject<F, P>(mut obj: CObjectMut<'_>, func: F, on_panic: P)
 where
-    F: UnwindSafe + FnOnce(CObjectRef<'_>),
-    P: UnwindSafe + FnOnce(CObjectRef<'_>, CObject),
+    F: UnwindSafe + FnOnce(CObjectMut<'_>),
+    P: UnwindSafe + FnOnce(CObjectMut<'_>, CObject),
 {
     let a_obj = AssertUnwindSafe(obj.reborrow());
     let err = match std::panic::catch_unwind(|| func(fix(a_obj))) {

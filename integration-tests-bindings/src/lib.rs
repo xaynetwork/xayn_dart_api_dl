@@ -25,7 +25,7 @@ use std::{
 use once_cell::sync::Lazy;
 
 use dart_api_dl::{
-    cobject::{CObject, CObjectRef, CObjectValuesRef},
+    cobject::{CObject, CObjectMut, CObjectValuesRef},
     initialize_dart_api_dl,
     ports::{
         DartPortId,
@@ -116,7 +116,7 @@ impl CmdHandler {
     fn handle_cmd(
         rt: DartRuntime,
         respond_to: SendPort,
-        slice: &[CObjectRef<'_>],
+        slice: &[CObjectMut<'_>],
     ) -> Result<(), String> {
         let cmd = slice
             .get(0)
@@ -163,7 +163,7 @@ impl NativeMessageHandler for CmdHandler {
     const CONCURRENT_HANDLING: bool = true;
     const NAME: &'static str = "adder";
 
-    fn handle_message(rt: DartRuntime, _ourself: &NativeRecvPort, msg: CObjectRef<'_>) {
+    fn handle_message(rt: DartRuntime, _ourself: &NativeRecvPort, msg: CObjectMut<'_>) {
         log(format!("handle-msg-0: {:?}", msg));
         if let Ok(CObjectValuesRef::Array(slice)) = msg.value_ref(rt) {
             if let Some(respond_to) = slice.get(0).and_then(|o| o.as_send_port(rt)).flatten() {
@@ -181,7 +181,7 @@ impl NativeMessageHandler for CmdHandler {
     fn handle_panic(
         rt: DartRuntime,
         _ourself: &NativeRecvPort,
-        data: CObjectRef<'_>,
+        data: CObjectMut<'_>,
         mut panic: CObject,
     ) {
         let value_ref = match data.value_ref(rt) {
