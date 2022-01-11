@@ -23,9 +23,9 @@
 //! - [`CObject`] type which is read only.
 //!   You will either get a reference to it
 //!   from an external source or by dereferencing
-//!   [`OwnedCObject`].
+//!   [`CObject`].
 //!
-//! - [`OwnedCObject`] an instance we created and as
+//! - [`CObject`] an instance we created and as
 //!   such we need to handle resource cleanup, like
 //!   freeing allocated string.
 

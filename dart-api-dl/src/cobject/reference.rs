@@ -21,11 +21,15 @@ use std::{
 
 use dart_api_dl_sys::{Dart_CObject, Dart_CObject_Type};
 
-use crate::{ports::SendPort, DartRuntime};
+use crate::{
+    ports::SendPort,
+    utils::{prepare_dart_array_parts, prepare_dart_array_parts_mut},
+    DartRuntime,
+};
 
 use super::{
-    CObjectRef,
     CObjectType,
+    CObjectValuesRef,
     Capability,
     TypedDataRef,
     TypedDataType,
@@ -33,16 +37,48 @@ use super::{
     UnknownTypedDataType,
 };
 
-/// Wrapper around a `Dart_CObject` which can be read, but which we do not own.
+/// Reference to a `Dart_CObject` that can be read but isn't own by rust.
+///
+/// Due to the design of dart's send port API this is a mutable reference,
+/// and might be changed in some cases, e.g. when externally typed data is moved
+/// to dart when sending it over a `SendPort`.
+///
+/// # A note about why that is not a `&mut` ref
+///
+/// `CObjectMut` might be owned by dart, so we should not arbitrarily
+/// modify it. While dart uses a form of pooled GC and as such a modification
+/// shouldn't normally have too bad consequences, with rust we don't have such mechanism,
+/// which in turn could cause problems. Basically, we can at most move things out
+/// of it but if we don't do that carefully, it might cause memory leaks.
+///
+/// More important we must not swap allocated values between `CObjects`. As swapping
+/// between dart and rust owned objects, or between two objects with different lifetimes
+/// will cause soundness issues once at lest one of them is dropped.
 ///
 /// As such we can't deallocate anything in it and should in general not modify it.
-// Transparent repr is very important as we will "unsafe" cast between the dart type
+// Note: Transparent repr is very important as we will "unsafe" cast between the dart type
 // and our new-type which we use to attach methods and safety to the dart type.
 #[repr(transparent)]
-pub struct CObject(pub(super) Dart_CObject);
+pub struct CObjectMut<'a> {
+    /// The reference to the raw `Dart_CObject`.
+    ///
+    /// # Safety
+    ///
+    /// It is only allowed to modify the referenced [`Dart_CObject`] by
+    /// setting the external typed data to null or by temporary modifications
+    /// made by dart when sending it via the port.
+    ///
+    /// Those guarantees are similar to `Pin` but less strict.
+    ///
+    /// You could say that this is basically a `&Dart_CObject` except that
+    /// externally typed data is set to null when it has been moved out and
+    /// the fact that sending requires a mut ref for tmp. in place
+    /// modifications that dart does as a form of optimization.
+    pub(super) partial_mut: &'a mut Dart_CObject,
+}
 
-impl CObject {
-    /// Cast a pointer to a [`Dart_CObject`] to a [`CObject`] for the duration of the closure.
+impl<'a> CObjectMut<'a> {
+    /// Cast a pointer from a [`Dart_CObject`] to a [`CObjectMut`] for the duration of the closure.
     ///
     /// # Safety
     ///
@@ -51,43 +87,56 @@ impl CObject {
     ///    the type and set data match and are sound. This
     ///    moves the unsafety of the various `as_*` methods
     ///    into this method.
+    /// 3. it must be valid to turn the pointer into a `&mut`
+    ///    for the duration of this function call
     pub unsafe fn with_pointer<R>(
         ptr: *mut Dart_CObject,
-        func: impl for<'a> FnOnce(&'a mut CObject) -> R,
+        func: impl for<'b> FnOnce(CObjectMut<'b>) -> R,
     ) -> R {
-        func(unsafe { &mut *ptr.cast::<CObject>() })
+        func(unsafe {
+            CObjectMut {
+                partial_mut: &mut *ptr,
+            }
+        })
+    }
+
+    /// Reborrows this instance.
+    pub fn reborrow(&mut self) -> CObjectMut<'_> {
+        CObjectMut {
+            partial_mut: self.partial_mut,
+        }
     }
 
     /// Return the underlying pointer.
     ///
     /// # Safety
     ///
-    /// If you use unsafe code to modify the underlying object
-    /// you MUST make sure it still is sound and that you do
-    /// not provoke use-after free or double free situations.
+    /// The returned pointer must only be used for sending it
+    /// to a port. If the [`Dart_CObject`] contains external typed data,
+    /// this data must be removed after sending by setting it to null.
     ///
-    /// Preferably do not modify the object at all.
-    pub fn as_mut_ptr(&mut self) -> *mut Dart_CObject {
-        &mut self.0
+    /// The `SendPort` abstraction provided by this library does so automatically.
+    pub(crate) fn as_mut_ptr(&mut self) -> *mut Dart_CObject {
+        self.partial_mut
     }
 
     /// Set type to null, doesn't run any drop and as such might leak memory.
     pub(crate) fn set_to_null(&mut self) {
-        self.0.type_ = Dart_CObject_Type::Dart_CObject_kNull;
+        self.partial_mut.type_ = Dart_CObject_Type::Dart_CObject_kNull;
     }
 
-    /// Returns the type (tag/variant) of the [`CObject`].
+    /// Returns the type (tag/variant) of the [`CObjectMut`].
     ///
     /// # Errors
     ///
     /// Fails if the type is not known (supported) by this library.
     pub fn r#type(&self) -> Result<CObjectType, UnknownCObjectType> {
-        self.0.type_.try_into()
+        self.partial_mut.type_.try_into()
     }
 
     /// Returns `Some` if the object is null.
     pub fn as_null(&self, rt: DartRuntime) -> Option<()> {
-        if let Ok(CObjectRef::Null) = self.value_ref(rt) {
+        if let Ok(CObjectValuesRef::Null) = self.value_ref(rt) {
             Some(())
         } else {
             None
@@ -96,7 +145,7 @@ impl CObject {
 
     /// Returns `Some` if the object is a bool.
     pub fn as_bool(&self, rt: DartRuntime) -> Option<bool> {
-        if let Ok(CObjectRef::Bool(b)) = self.value_ref(rt) {
+        if let Ok(CObjectValuesRef::Bool(b)) = self.value_ref(rt) {
             Some(b)
         } else {
             None
@@ -105,7 +154,7 @@ impl CObject {
 
     /// Returns `Some` if the object is a 32bit int.
     pub fn as_int32(&self, rt: DartRuntime) -> Option<i32> {
-        if let Ok(CObjectRef::Int32(v)) = self.value_ref(rt) {
+        if let Ok(CObjectValuesRef::Int32(v)) = self.value_ref(rt) {
             Some(v)
         } else {
             None
@@ -114,7 +163,7 @@ impl CObject {
 
     /// Returns `Some` if the object is a 64bit int.
     pub fn as_int64(&self, rt: DartRuntime) -> Option<i64> {
-        if let Ok(CObjectRef::Int64(v)) = self.value_ref(rt) {
+        if let Ok(CObjectValuesRef::Int64(v)) = self.value_ref(rt) {
             Some(v)
         } else {
             None
@@ -129,7 +178,7 @@ impl CObject {
 
     /// Returns `Some` if the object is a 64bit float.
     pub fn as_double(&self, rt: DartRuntime) -> Option<f64> {
-        if let Ok(CObjectRef::Double(d)) = self.value_ref(rt) {
+        if let Ok(CObjectValuesRef::Double(d)) = self.value_ref(rt) {
             Some(d)
         } else {
             None
@@ -138,16 +187,16 @@ impl CObject {
 
     /// Returns `Some` if the object is a string.
     pub fn as_string(&self, rt: DartRuntime) -> Option<&str> {
-        if let Ok(CObjectRef::String(s)) = self.value_ref(rt) {
+        if let Ok(CObjectValuesRef::String(s)) = self.value_ref(rt) {
             Some(s)
         } else {
             None
         }
     }
 
-    /// Returns `Some` if the object is an array of references to [`CObject`]s.
-    pub fn as_array(&self, rt: DartRuntime) -> Option<&[&CObject]> {
-        if let Ok(CObjectRef::Array(array)) = self.value_ref(rt) {
+    /// Returns `Some` if the object is an array of references to [`CObjectMut`]s.
+    pub fn as_array(&self, rt: DartRuntime) -> Option<&[CObjectMut<'_>]> {
+        if let Ok(CObjectValuesRef::Array(array)) = self.value_ref(rt) {
             Some(array)
         } else {
             None
@@ -166,7 +215,7 @@ impl CObject {
         &self,
         rt: DartRuntime,
     ) -> Option<(Result<TypedDataRef<'_>, UnknownTypedDataType>, bool)> {
-        if let Ok(CObjectRef::TypedData {
+        if let Ok(CObjectValuesRef::TypedData {
             data,
             external_typed,
         }) = self.value_ref(rt)
@@ -184,7 +233,7 @@ impl CObject {
     /// such it's an `Option<Option<>>`.
     #[allow(clippy::option_option)]
     pub fn as_send_port(&self, rt: DartRuntime) -> Option<Option<SendPort>> {
-        if let Ok(CObjectRef::SendPort(port)) = self.value_ref(rt) {
+        if let Ok(CObjectValuesRef::SendPort(port)) = self.value_ref(rt) {
             Some(port)
         } else {
             None
@@ -193,7 +242,7 @@ impl CObject {
 
     /// Returns `Some` if the object is a capability.
     pub fn as_capability(&self, rt: DartRuntime) -> Option<Capability> {
-        if let Ok(CObjectRef::Capability(cap)) = self.value_ref(rt) {
+        if let Ok(CObjectValuesRef::Capability(cap)) = self.value_ref(rt) {
             Some(cap)
         } else {
             None
@@ -202,13 +251,13 @@ impl CObject {
 
     /// Returns `Some` if the object is typed data.
     ///
-    /// This is similar to [`CObject.as_typed_data()`] but only returns the typed
+    /// This is similar to [`CObjectMut.as_typed_data()`] but only returns the typed
     /// data type.
     ///
     /// Returns `Some(Err(_))` if the typed data type isn't supported by this library.
     pub fn typed_data_type(&self) -> Option<Result<TypedDataType, UnknownTypedDataType>> {
-        (self.0.type_ == Dart_CObject_Type::Dart_CObject_kTypedData
-            || self.0.type_ == Dart_CObject_Type::Dart_CObject_kExternalTypedData)
+        (self.partial_mut.type_ == Dart_CObject_Type::Dart_CObject_kTypedData
+            || self.partial_mut.type_ == Dart_CObject_Type::Dart_CObject_kExternalTypedData)
             .then(|| {
                 // Safe: We checked the the object type.
                 unsafe { self.read_typed_data_type() }
@@ -227,7 +276,7 @@ impl CObject {
         // It's safe to always read from `as_typed_data` as `Dart_CObject` is intentionally
         // designed so that external typed data has the same fields in the same layout as
         // typed data (just some additional ones)
-        unsafe { self.0.value.as_typed_data.type_ }.try_into()
+        unsafe { self.partial_mut.value.as_typed_data.type_ }.try_into()
     }
 
     /// If the type is known returns an enums with a type specific reference to the data.
@@ -239,76 +288,73 @@ impl CObject {
     /// # Errors
     ///
     /// If the object type is not supported an error is returned.
-    pub fn value_ref(&self, rt: DartRuntime) -> Result<CObjectRef<'_>, UnknownCObjectType> {
+    pub fn value_ref(&self, rt: DartRuntime) -> Result<CObjectValuesRef<'_>, UnknownCObjectType> {
         #![allow(clippy::enum_glob_use)]
-        use CObjectRef::*;
+        use CObjectValuesRef::*;
         let r#type = self.r#type()?;
         match r#type {
             CObjectType::Null => Ok(Null),
             CObjectType::Bool => {
                 // Safe:
-                // - CObject is sound
+                // - the CObject behind the reference is sound
                 // - we checked the type
-                Ok(Bool(unsafe { self.0.value.as_bool }))
+                Ok(Bool(unsafe { self.partial_mut.value.as_bool }))
             }
             CObjectType::Int32 => {
                 // Safe:
-                // - CObject is sound
+                // - the CObject behind the reference is sound
                 // - we checked the type
-                Ok(Int32(unsafe { self.0.value.as_int32 }))
+                Ok(Int32(unsafe { self.partial_mut.value.as_int32 }))
             }
             CObjectType::Int64 => {
                 // Safe:
-                // - CObject is sound
+                // - the CObject behind the reference is sound
                 // - we checked the type
-                Ok(Int64(unsafe { self.0.value.as_int64 }))
+                Ok(Int64(unsafe { self.partial_mut.value.as_int64 }))
             }
             CObjectType::Double => {
                 // Safe:
-                // - CObject is sound
+                // - the CObject behind the reference is sound
                 // - we checked the type
-                Ok(Double(unsafe { self.0.value.as_double }))
+                Ok(Double(unsafe { self.partial_mut.value.as_double }))
             }
             CObjectType::String => {
                 // Safe:
-                // - CObject is sound
+                // - the CObject behind the reference is sound
                 // - we checked the type
                 // - strings in CObject are utf-8 (and 0 terminated)
                 Ok(String(unsafe {
-                    let c_str = CStr::from_ptr(self.0.value.as_string);
+                    let c_str = CStr::from_ptr(self.partial_mut.value.as_string);
                     std::str::from_utf8_unchecked(c_str.to_bytes())
                 }))
             }
             CObjectType::Array => {
                 // Safe:
-                // - CObject is sound
+                // - the CObject behind the reference is sound
                 // - we checked the type
                 // - ExternalTypedData is repr(transparent)
                 // - *const/*mut/& all have the same representation
                 Ok(Array(unsafe {
-                    let ar = &self.0.value.as_array;
-                    // *mut *mut Dart_CObject
-                    let ptr = ar.values as *const &CObject;
-                    // This runs in FFI so we really don't want to panic, so
-                    // if length <0 we set length = 0 (which in itself is unsound).
-                    slice::from_raw_parts(ptr, ar.length.try_into().unwrap_or(0))
+                    let as_array = &self.partial_mut.value.as_array;
+                    let (ptr, len) = prepare_dart_array_parts(
+                        // *mut *mut Dart_CObject
+                        as_array.values.cast::<CObjectMut<'a>>(),
+                        as_array.length,
+                    );
+                    slice::from_raw_parts(ptr, len)
                 }))
             }
             CObjectType::TypedData | CObjectType::ExternalTypedData => {
                 // Safe: We checked the object type.
                 let data = unsafe { self.read_typed_data_type() }.map(|data_type| {
                     // Safe:
-                    // - CObject is sound
+                    // - the CObject behind the reference is sound
                     // - we checked the type
                     unsafe {
-                        let data = &self.0.value.as_typed_data;
-                        TypedDataRef::from_raw(
-                            data_type,
-                            data.values as *const u8,
-                            // This runs in FFI so we really don't want to panic, so
-                            // if length <0 we set length = 0 (which in itself is unsound).
-                            data.length.try_into().unwrap_or(0),
-                        )
+                        let as_typed_data = &self.partial_mut.value.as_typed_data;
+                        let (ptr, len) =
+                            prepare_dart_array_parts(as_typed_data.values, as_typed_data.length);
+                        TypedDataRef::from_raw(data_type, ptr, len)
                     }
                 });
 
@@ -319,31 +365,54 @@ impl CObject {
             }
             CObjectType::SendPort => {
                 // Safe:
-                // - CObject is sound
+                // - the CObject behind the reference is sound
                 // - we checked the type
                 Ok(SendPort(unsafe {
-                    let sp = &self.0.value.as_send_port;
+                    let sp = &self.partial_mut.value.as_send_port;
                     rt.send_port_from_raw_with_origin(sp.id, sp.origin_id)
                 }))
             }
             CObjectType::Capability => {
                 // Safe:
-                // - CObject is sound
+                // - the CObject behind the reference is sound
                 // - we checked the type
-                Ok(Capability(unsafe { self.0.value.as_capability.id }))
+                Ok(Capability(unsafe {
+                    self.partial_mut.value.as_capability.id
+                }))
             }
+        }
+    }
+
+    pub(crate) fn null_external_typed_objects(&mut self, rt: DartRuntime) {
+        match self.r#type() {
+            Ok(CObjectType::ExternalTypedData) => self.set_to_null(),
+            Ok(CObjectType::Array) => {
+                let array = unsafe {
+                    let as_array = &mut self.partial_mut.value.as_array;
+                    let (ptr, len) = prepare_dart_array_parts_mut(
+                        // *mut *mut Dart_CObject
+                        as_array.values.cast::<CObjectMut<'a>>(),
+                        as_array.length,
+                    );
+                    slice::from_raw_parts_mut(ptr, len)
+                };
+                for element in array {
+                    element.null_external_typed_objects(rt);
+                }
+            }
+            _ => {}
         }
     }
 }
 
-impl Debug for CObject {
+impl Debug for CObjectMut<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         if let Ok(rt) = DartRuntime::instance() {
-            f.debug_struct("ExternCObject")
+            f.debug_struct("CObjectMut")
                 .field("as_enum", &self.value_ref(rt))
                 .finish()
         } else {
-            f.debug_struct("ExternCObject")
+            f.debug_struct("CObjectMut")
                 .field("as_enum", &"<unknown>")
                 .finish()
         }

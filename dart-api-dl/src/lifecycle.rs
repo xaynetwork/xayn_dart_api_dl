@@ -92,7 +92,19 @@ impl DartRuntime {
             .unwrap_or(Err(InitializationFailed::InitNotYetCalled))
     }
 
-    #[cfg(test)]
+    /// Creates a new dart `DartRuntime` marker, assuming that we already initialized the runtime.
+    ///
+    /// # Safety
+    ///
+    /// The dart runtime must already have been initialized.
+    ///
+    /// In exceptional cases (mainly testing) it can be fine to use
+    /// this for code which is known to be rust-safe for the
+    /// specific usage even if the dart runtime is not initialized.
+    ///
+    /// Be aware that due to race conditions it is never safe to
+    /// call any dart api dl C function if the dart runtime is
+    /// not known to be initialized or known to never get initialized.
     pub(crate) unsafe fn instance_unchecked() -> Self {
         DartRuntime { _priv: () }
     }

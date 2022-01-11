@@ -25,7 +25,7 @@ use std::{
 use once_cell::sync::Lazy;
 
 use dart_api_dl::{
-    cobject::{CObject, CObjectRef, OwnedCObject},
+    cobject::{CObject, CObjectMut, CObjectValuesRef},
     initialize_dart_api_dl,
     ports::{
         DartPortId,
@@ -80,9 +80,9 @@ fn setup_cmd_handler_inner(respond_to: DartPortId) -> Result<(), SetupError> {
     log("setup-2");
     let adder_send_port = rt.native_recv_port::<CmdHandler>()?.leak();
     log("setup-3");
-    let mut cobj = OwnedCObject::send_port(adder_send_port);
+    let mut cobj = CObject::send_port(adder_send_port);
     log("setup-4");
-    send_port.post_cobject_mut(&mut cobj)?;
+    send_port.post_cobject_mut(cobj.as_mut())?;
     log("setup-5");
     Ok(())
 }
@@ -113,7 +113,11 @@ enum SetupError {
 struct CmdHandler;
 
 impl CmdHandler {
-    fn handle_cmd(rt: DartRuntime, respond_to: SendPort, slice: &[&CObject]) -> Result<(), String> {
+    fn handle_cmd(
+        rt: DartRuntime,
+        respond_to: SendPort,
+        slice: &[CObjectMut<'_>],
+    ) -> Result<(), String> {
         let cmd = slice
             .get(0)
             .ok_or("no cmd argument")?
@@ -137,11 +141,11 @@ impl CmdHandler {
                     .map_err(|_| "Adder was shutdown".to_owned())?;
             }
             "hy" => {
-                let msg = OwnedCObject::string("hy hy ho").map_err(|v| v.to_string())?;
+                let msg = CObject::string("hy hy ho").map_err(|v| v.to_string())?;
                 respond_to.post_cobject(msg).map_err(|v| v.to_string())?;
             }
             "send etd" => {
-                let msg = OwnedCObject::external_typed_data(vec![1u8, 12, 33]);
+                let msg = CObject::external_typed_data(vec![1u8, 12, 33]);
                 respond_to.post_cobject(msg).map_err(|v| v.to_string())?;
             }
             "panic" => {
@@ -159,14 +163,14 @@ impl NativeMessageHandler for CmdHandler {
     const CONCURRENT_HANDLING: bool = true;
     const NAME: &'static str = "adder";
 
-    fn handle_message(rt: DartRuntime, _ourself: &NativeRecvPort, msg: &mut CObject) {
+    fn handle_message(rt: DartRuntime, _ourself: &NativeRecvPort, msg: CObjectMut<'_>) {
         log(format!("handle-msg-0: {:?}", msg));
-        if let Ok(CObjectRef::Array(slice)) = msg.value_ref(rt) {
+        if let Ok(CObjectValuesRef::Array(slice)) = msg.value_ref(rt) {
             if let Some(respond_to) = slice.get(0).and_then(|o| o.as_send_port(rt)).flatten() {
                 if let Err(err) = Self::handle_cmd(rt, respond_to, &slice[1..]) {
-                    if let Ok(mut err) = OwnedCObject::string(format!("Error: {}", err)) {
-                        if respond_to.post_cobject_mut(&mut err).is_err() {
-                            log(format!("Failed to post error: {:?}", err));
+                    if let Ok(mut err) = CObject::string(format!("Error: {}", err)) {
+                        if respond_to.post_cobject_mut(err.as_mut()).is_err() {
+                            log(format!("Failed to post error: {:?}", err.as_mut()));
                         }
                     }
                 }
@@ -177,8 +181,8 @@ impl NativeMessageHandler for CmdHandler {
     fn handle_panic(
         rt: DartRuntime,
         _ourself: &NativeRecvPort,
-        data: &mut CObject,
-        panic: &mut OwnedCObject,
+        data: CObjectMut<'_>,
+        mut panic: CObject,
     ) {
         let value_ref = match data.value_ref(rt) {
             Ok(r) => r,
@@ -186,7 +190,7 @@ impl NativeMessageHandler for CmdHandler {
         };
 
         let slice = match value_ref {
-            CObjectRef::Array(slice) => slice,
+            CObjectValuesRef::Array(slice) => slice,
             _ => return,
         };
 
@@ -195,7 +199,7 @@ impl NativeMessageHandler for CmdHandler {
             _ => return,
         };
 
-        if let Err(_err) = send_port.post_cobject_mut(panic) {
+        if let Err(_err) = send_port.post_cobject_mut(panic.as_mut()) {
             //TODO
         }
     }
