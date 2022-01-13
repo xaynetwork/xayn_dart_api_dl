@@ -19,16 +19,10 @@ Safer bindings  around `dart-api-dl-sys`, including:
 
 ## License
 
-*Except* for the [./dart-src](./dart-src) folder all other parts are
-licensed under:
-
-- Apache License, Version 2.0, (LICENSE-APACHE or http://www.apache.org/licenses/LICENSE-2.0)
-
-The contents in the [./dart-src](./dart-src) are extracted from the dart language
-project and are licensed as defined by the [license file](./dart-src/LICENSE) in that folder.
+See the [NOTICE](NOTICE) file.
 
 ### Contribution
 
 Unless you explicitly state otherwise, any contribution intentionally submitted
-for inclusion in the work by you, as defined in the Apache-2.0 license, shall be
-licensed as above, without any additional terms or conditions.
+for inclusion in the this project by you, shall be licensed as Apache-2.0, without any additional
+terms or conditions.
