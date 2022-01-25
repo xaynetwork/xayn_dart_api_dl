@@ -68,7 +68,6 @@ jobs:
         run: cargo clippy --all-targets -- --deny warnings
 
   cargo-test:
-    runs-on: ubuntu-20.04
     timeout-minutes: 20
     strategy:
       matrix:
