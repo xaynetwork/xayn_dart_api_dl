@@ -19,4 +19,4 @@ semver = "1.0.5"
 # the Cargo.toml manifest. We don't use it but cargo can't know that and as such
 # downloads the sources and tries to parse the manifest.
 [target.'cfg(target_os = "hermit")'.build-dependencies]
-hermit-abi = ">=0.1.6, <=0.1.19"
+hermit-abi = ">=0.1.6, <0.1.20"
