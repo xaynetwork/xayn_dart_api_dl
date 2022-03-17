@@ -253,9 +253,9 @@ macro_rules! impl_custom_external_typed_data_for_vec {
     }) => ($(
         unsafe impl CustomExternalTyped for Vec<$st> {
             fn into_external_typed_data(mut self) -> ExternalTypedData {
-                let data = self.as_mut_ptr() as *mut u8;
+                let data = self.as_mut_ptr().cast::<u8>();
                 let length = self.len().try_into().unwrap();
-                let peer = Box::into_raw(Box::new(self)) as *mut c_void;
+                let peer = Box::into_raw(Box::new(self)).cast::<c_void>();
 
                 ExternalTypedData {
                     type_:  TypedDataType::$typed_data_variant.into(),
