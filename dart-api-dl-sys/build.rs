@@ -77,5 +77,6 @@ fn main() {
     cc::Build::new()
         .file(dl_glue_path)
         .include(dart_src_dir)
+        .pic(true)
         .compile("dart_api_dl");
 }
