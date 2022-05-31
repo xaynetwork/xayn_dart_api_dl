@@ -16,7 +16,7 @@ permissions:
   contents: read
 
 env:
-  RUST_NIGHTLY: nightly-2021-09-09
+  RUST_NIGHTLY: nightly-2022-05-19
   RUST_WORKSPACE: ${{ github.workspace }}/
   RUSTFLAGS: "-D warnings"
   DISABLE_AUTO_DART_FFIGEN: 1
