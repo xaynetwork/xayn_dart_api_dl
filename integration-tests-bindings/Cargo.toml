@@ -1,16 +1,16 @@
 [package]
 name = "integration-tests-bindings"
 version = "0.1.0"
-edition = "2018"
+edition = "2021"
 license = "Apache-2.0"
 
 [dependencies]
 dart-api-dl = { package = "xayn-dart-api-dl", version = "0.3.0" }
-once_cell = "1.9.0"
-thiserror = "1.0.30"
+once_cell = "1.12.0"
+thiserror = "1.0.31"
 
 [lib]
 crate-type = ["cdylib", "staticlib"]
 
 [build-dependencies]
-cbindgen = "=0.20.0"
+cbindgen = "=0.24.3"
