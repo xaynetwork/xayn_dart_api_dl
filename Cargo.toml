@@ -5,7 +5,6 @@ members = [
     "integration-tests-bindings",
     "update-lib",
 ]
-resolver = "2"
 
 [patch.crates-io]
 xayn-dart-api-dl-sys = { path = "./dart-api-dl-sys" }

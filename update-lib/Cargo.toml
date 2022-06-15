@@ -1,9 +1,9 @@
 [package]
 name = "update-lib"
 version = "0.1.0"
-edition = "2018"
+edition = "2021"
 license = "Apache-2.0"
 
 [dependencies]
-semver = "1.0.4"
-toml_edit = "0.12.3"
+semver = "1.0.10"
+toml_edit = "0.14.4"
