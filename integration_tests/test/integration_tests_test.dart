@@ -49,17 +49,12 @@ Future<void> main() async {
     );
   });
 
-  test(
-    'send TransferTypedData to rust',
-    () async {
-      final data = TransferableTypedData.fromList([
-        Uint8List.fromList([33, 44, 12, 123])
-      ]);
-      await Commander.sendCmd('recv ttd', [data]);
-    },
-    // Crashes in dart 2.14.4
-    skip: true,
-  );
+  test('send TransferTypedData to rust', () async {
+    final data = TransferableTypedData.fromList([
+      Uint8List.fromList([33, 44, 12, 123])
+    ]);
+    await Commander.sendCmd('recv ttd', [data]);
+  });
 
   test('panic catching works', () async {
     final dynamic res = await Commander.sendCmd('panic');
