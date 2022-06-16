@@ -9,4 +9,5 @@ cargo test
 cargo build -p integration-tests-bindings
 cd integration_tests
 dart pub get
+dart analyze
 dart test
