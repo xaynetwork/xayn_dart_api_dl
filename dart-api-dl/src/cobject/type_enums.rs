@@ -73,7 +73,7 @@ impl_from_for_pseudo_enums! {
 /// - It was added in a newer Dart VM version.
 /// - It's the `Dart_CObject_kUnsupported` type.
 /// - It's the `Dart_CObject_kNumberOfTypes` type.
-#[derive(Debug, Error, PartialEq)]
+#[derive(Debug, Eq, Error, PartialEq)]
 #[error("UnknownCObjectType: {:?}", _0)]
 pub struct UnknownCObjectType(pub Dart_CObject_Type);
 
