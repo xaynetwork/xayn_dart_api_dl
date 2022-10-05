@@ -83,7 +83,7 @@ impl DartRuntime {
         port: DartPortId,
         origin: DartPortId,
     ) -> Option<SendPort> {
-        (port != ILLEGAL_PORT).then(|| SendPort { port, origin })
+        (port != ILLEGAL_PORT).then_some(SendPort { port, origin })
     }
 
     /// Wrap a raw port id as `NativeRecvPort`.
@@ -91,12 +91,10 @@ impl DartRuntime {
     /// The returned type will close the port when it's dropped and can
     /// be used as a guard.
     pub fn native_recv_port_from_raw(&self, port: DartPortId) -> Option<NativeRecvPort> {
-        (port != ILLEGAL_PORT).then(|| {
-            NativeRecvPort(SendPort {
-                port,
-                origin: ILLEGAL_PORT,
-            })
-        })
+        (port != ILLEGAL_PORT).then_some(NativeRecvPort(SendPort {
+            port,
+            origin: ILLEGAL_PORT,
+        }))
     }
 
     /// Creates a new [`NativeRecvPort`].
