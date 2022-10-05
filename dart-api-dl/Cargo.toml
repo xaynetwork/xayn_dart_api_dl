@@ -7,6 +7,6 @@ license = "Apache-2.0"
 [dependencies]
 dart-api-dl-sys = { package = "xayn-dart-api-dl-sys", version = "0.3.0" }
 displaydoc = "0.2.3"
-once_cell = "1.13.0"
+once_cell = "1.15.0"
 static_assertions = "1.1.0"
-thiserror = "1.0.32"
+thiserror = "1.0.37"

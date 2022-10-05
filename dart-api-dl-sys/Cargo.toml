@@ -11,4 +11,4 @@ static_assertions = "1.1.0"
 [build-dependencies]
 bindgen = "0.60.1"
 cc = "1.0.73"
-semver = "1.0.13"
+semver = "1.0.14"
