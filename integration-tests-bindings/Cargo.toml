@@ -3,6 +3,7 @@ name = "integration-tests-bindings"
 version = "0.1.0"
 edition = { workspace = true }
 license = { workspace = true }
+rust-version = { workspace = true }
 
 [dependencies]
 dart-api-dl = { package = "xayn-dart-api-dl", version = "0.3.0" }
