@@ -16,7 +16,7 @@ permissions:
   contents: read
 
 env:
-  RUST_NIGHTLY: nightly-2022-07-16
+  RUST_NIGHTLY: nightly-2022-09-22
   RUST_WORKSPACE: ${{ github.workspace }}/
   RUSTFLAGS: "-D warnings"
   DISABLE_AUTO_DART_FFIGEN: 1
@@ -26,13 +26,13 @@ jobs:
     runs-on: ubuntu-20.04
     timeout-minutes: 5
     steps:
-      - uses: actions/checkout@2541b1294d2704b0964813337f33b291d3f8596b # v3.0.2
+      - uses: actions/checkout@93ea575cb5d8a053eaa0ac8fa3b40d7e05a33cc8 # v3.1.0
 
       - name: Install rust toolchain
         working-directory: ${{ env.RUST_WORKSPACE }}
         run: rustup toolchain install ${{ env.RUST_NIGHTLY }} --component rustfmt
 
-      - uses: Swatinem/rust-cache@cb2cf0cc7c5198d3364b9630e2c3d457f160790c # v1.4.0
+      - uses: Swatinem/rust-cache@6720f05bc48b77f96918929a9019fb2203ff71f8 # v2.0.0
 
       - name: cargo fmt
         working-directory: ${{ env.RUST_WORKSPACE }}
@@ -43,7 +43,7 @@ jobs:
     timeout-minutes: 10
     steps:
       - name: Checkout repository
-        uses: actions/checkout@2541b1294d2704b0964813337f33b291d3f8596b # v3.0.2
+        uses: actions/checkout@93ea575cb5d8a053eaa0ac8fa3b40d7e05a33cc8 # v3.1.0
 
       - name: Install cargo-sort
         uses: ./.ci/install-cargo-sort
@@ -55,13 +55,13 @@ jobs:
     runs-on: ubuntu-20.04
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@2541b1294d2704b0964813337f33b291d3f8596b # v3.0.2
+      - uses: actions/checkout@93ea575cb5d8a053eaa0ac8fa3b40d7e05a33cc8 # v3.1.0
 
       - name: Install rust toolchain
         working-directory: ${{ env.RUST_WORKSPACE }}
         run: rustup show
 
-      - uses: Swatinem/rust-cache@cb2cf0cc7c5198d3364b9630e2c3d457f160790c # v1.4.0
+      - uses: Swatinem/rust-cache@6720f05bc48b77f96918929a9019fb2203ff71f8 # v2.0.0
 
       - name: cargo clippy
         working-directory: ${{ env.RUST_WORKSPACE }}
@@ -76,13 +76,13 @@ jobs:
           - macos-11
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@2541b1294d2704b0964813337f33b291d3f8596b # v3.0.2
+      - uses: actions/checkout@93ea575cb5d8a053eaa0ac8fa3b40d7e05a33cc8 # v3.1.0
 
       - name: Install rust toolchain
         working-directory: ${{ env.RUST_WORKSPACE }}
         run: rustup show
 
-      - uses: Swatinem/rust-cache@cb2cf0cc7c5198d3364b9630e2c3d457f160790c # v1.4.0
+      - uses: Swatinem/rust-cache@6720f05bc48b77f96918929a9019fb2203ff71f8 # v2.0.0
 
       - name: Run tests
         working-directory: ${{ env.RUST_WORKSPACE }}
@@ -94,13 +94,13 @@ jobs:
     runs-on: ubuntu-20.04
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@2541b1294d2704b0964813337f33b291d3f8596b # v3.0.2
+      - uses: actions/checkout@93ea575cb5d8a053eaa0ac8fa3b40d7e05a33cc8 # v3.1.0
 
       - name: Install rust toolchain
         working-directory: ${{ env.RUST_WORKSPACE }}
         run: rustup show
 
-      - uses: Swatinem/rust-cache@cb2cf0cc7c5198d3364b9630e2c3d457f160790c # v1.4.0
+      - uses: Swatinem/rust-cache@6720f05bc48b77f96918929a9019fb2203ff71f8 # v2.0.0
 
       - name: cargo doc
         working-directory: ${{ env.RUST_WORKSPACE }}
